@@ -1,0 +1,35 @@
+{
+  "name": "red-screeps",
+  "version": "2.0.0",
+  "description": "A project devoted to making the best screeps I can make",
+  "main": "main.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@bitbucket.org/herbo4/red-screeps.git"
+  },
+  "keywords": [
+    "screeps"
+  ],
+  "author": "Aaron McCoy",
+  "license": "ISC",
+  "homepage": "https://bitbucket.org/herbo4/red-screeps#readme",
+  "devDependencies": {
+    "babel-plugin-transform-es2015-for-of": "^6.23.0",
+    "babel-preset-es2015": "^6.24.0",
+    "gulp": "^3.9.1",
+    "gulp-babel": "^6.1.2",
+    "gulp-concat": "^2.6.1",
+    "gulp-jshint": "^2.0.4",
+    "gulp-rename": "^1.2.2",
+    "gulp-screeps": "^1.0.3",
+    "gulp-uglify": "^2.1.2",
+    "gulp-uglifyjs": "^0.6.2",
+    "jshint": "^2.9.4",
+    "lodash": "^4.17.2",
+    "screepsplus-agent": "^1.0.18",
+    "uglifyjs": "^2.4.10"
+  }
+}
