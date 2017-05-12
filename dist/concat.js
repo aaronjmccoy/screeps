@@ -291,210 +291,377 @@ Room.prototype.miningSpots= function () {
         return miningspots;
 };
 
-function build(creep) {
-  //Find closest construction site and store in memory
-  if(creep.memory.colony){
-    creep.memory.target = Game.getObjectById(creep.memory.colony);
-  }else{
-    creep.memory.target = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
-  }
-
-    //if no target is successfully stored
-    if (!creep.memory.target || creep.memory.target === null) {
-        //upgrade instead
-        if (creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
-            creep.moveTo(creep.room.controller);
-            creep.upgradeController(creep.room.controller);
-        }
+function act(creep) {
+    switch (creep.memory.important) {
+        case 'build':
+            build(creep);
+            break;
+        case 'deposit':
+            deposit(creep);
+            break;
+        case 'eat':
+            eat(creep);
+            break;
+        case 'gather':
+            gather(creep);
+            break;
+        case 'mine':
+            mine(creep);
+            break;
+        case 'upgrade':
+            upgrade(creep);
+            break;
     }
-    //otherwise build at the site
-    else if(creep.build(creep.memory.target) == ERR_NOT_IN_RANGE) {
-        creep.moveTo(creep.memory.target);
-        creep.build(creep.memory.target);
-    }
-    creep.moveTo(creep.memory.target);
 }
 
-//takes an array of deposit target IDs and deposits into them in the order given
-//until each are full
-function deposit(creep) {
-  const resourceType = creep.memory.resourceType;
-    //for each item in the to Array
-    for (let id in creep.memory.to) {
-        if (creep.memory.to[id]){
-          //create an object from the id
-          var target = Game.getObjectById(creep.memory.to[id]);
-          //if the target has at least as much energy as the creep can hold currently
-          if ((target.energy < target.energyCapacity)||(_.sum(target.carry) < target.carryCapacity)||(_.sum(target.store) < target.storeCapacity)) {
-              // gather resources
-              //console.log('deposit target:'+target);
-              if (creep.transfer(target, resourceType) == ERR_NOT_IN_RANGE) {
-                  creep.moveTo(target);
-                  creep.transfer(target, resourceType);
-              }
-              //return true to end loop after resources transfer or don't for the first valid target
-              return true;
-          }else{
-            creep.moveTo(target);
+function gatherAura(creep) {
+        var shinies = creep.pos.findInRange(FIND_DROPPED_RESOURCES, 1, {
+            filter: r => r.resourceType == RESOURCE_ENERGY
+        });
+        var moarshinies = creep.pos.findInRange(FIND_STRUCTURES, 1, {
+            filter: s => s.structureType == STRUCTURE_CONTAINER
+        });
+        var evenmoarshinies = creep.pos.findInRange(FIND_STRUCTURES, 1, {
+            filter: s => s.structureType == STRUCTURE_STORAGE
+        });
+        if(creep.memory.role != 'newt' && creep.memory.role != 'toad'){
+          if (creep.withdraw(evenmoarshinies[0], RESOURCE_ENERGY) === 0) {
+              creep.say('shinies');
           }
         }
-    }
-}
-
-function eat(creep) {
-    var spawn = Game.getObjectById(creep.memory.home);
-    //console.log(spawn.renewCreep(creep));
-    if (spawn.renewCreep(creep) == ERR_NOT_IN_RANGE) {
-        creep.moveTo(spawn);
-    }
-
-    switch (spawn.renewCreep(creep)) {
-        case 0:
-            //creep successfuly eats
-            creep.say('NOM', true);
-            break;
-        case -1:
-            //don't own the spawn
-            creep.say('¯\\_(ツ)_/¯', false);
-            break;
-        case -4:
-            //spawn is busy
-            creep.say('Waiting', false);
-            break;
-        case -6:
-            //out of energy in spawn array
-            creep.say('Empty', false);
-            creep.memory.important = 'mine';
-            break;
-        case -7:
-            //invalid target
-            creep.say('Bad Target', false);
-            break;
-        case -8:
-            //creep is full
-            creep.memory.important = 'mine';
-            break;
-    }
-}
-
-//takes an array of deposit target IDs and gathers from them in the order given
-//until each are full
-function gather(creep) {
-    const resourceType = creep.memory.resourceType;
-    var target =_.max(creep.memory.from, function(containerID) {
-        return Game.getObjectById(containerID).store[RESOURCE_ENERGY];
-    });
-    //console.log('target: '+target);
-    var containerMax = Game.getObjectById(target);
-    if(containerMax){
-      //if the target has at least as much energy as the creep can hold currently
-      if (containerMax.store[resourceType] >= 50) {
-          // gather resources
-          if (creep.withdraw(containerMax, resourceType) == ERR_NOT_IN_RANGE) {
-              creep.moveTo(containerMax);
-              creep.withdraw(containerMax, resourceType);
+        if(creep.memory.role != 'toad'){
+          if (creep.withdraw(moarshinies[0], RESOURCE_ENERGY) === 0) {
+              creep.say('shinies');
           }
-          //return true to end loop after resources transfer or don't for the first valid target
-          return true;
-      }
-      creep.moveTo(Game.getObjectById(creep.memory.from[0]));
+        }
+        if (creep.pickup(shinies[0]) === 0) {
+            creep.say('shinies');
+        }
+}
+
+function depositAura(creep) {
+        var nearExt = creep.pos.findInRange(FIND_MY_STRUCTURES, 1, {
+            filter: s => s.structureType == STRUCTURE_EXTENSION
+        });
+        //console.log(nearExt);
+        for(let e in nearExt){
+          //console.log(nearExt[e]);
+          if (creep.transfer(nearExt[e], RESOURCE_ENERGY) === 0) {
+              creep.say('teehee');
+          }
+        }
+}
+
+function bullfrog(creep) {
+    //var extend = reds(creep);
+    var target = Game.flags['destroy'];
+    if (target) {
+        creep.say('flop');
+        creep.moveTo(target);
+        if (creep.room === Game.flags['claim'].room) {
+            if (creep.attack(target) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(creep.room.controller);
+            }
+        }
+    } else {
+        creep.say('bop');
+        if(Game.getObjectById(creep.memory.home).recycleCreep(creep)==ERR_NOT_IN_RANGE){
+          creep.moveTo(Game.getObjectById(creep.memory.home));
+        }
+    }
+}
+
+function spawnBullfrog(){
+  Game.spawns.Spawn2.createCreep([ATTACK, MOVE], Game.time + '_bullfrog', {role: 'bullfrog'});
+}
+
+function frog(creep) {
+    if (!creep.memory.from) {
+        const r = creep.room;
+        let containerArray = r.containerIDs();
+        let gatherArray = r.storageIDs();
+        gatherArray = gatherArray.concat(containerArray);
+        creep.memory.from = gatherArray;
+    }
+    //in rcl3 we want frogs to build and upgrade
+    if (creep.carry.energy === 0) {
+        creep.memory.important = 'gather';
+    } else if (creep.carry.energy == creep.carryCapacity) {
+        creep.memory.important = 'build';
+    }
+    act(creep);
+    gatherAura(creep);
+}
+
+function newt(creep) {
+    depositAura(creep);
+    if (!creep.memory.to) {
+        const r = creep.room;
+        let extensionArray = r.extensionIDs();
+        let spawnerArray = r.spawnerIDs();
+        let towerArray = r.towerIDs();
+        //let storageArray = r.storageIDs();
+        let frogArray = r.roleIDs('frog');
+        let depositArray = spawnerArray.concat(extensionArray);
+        depositArray = depositArray.concat(towerArray);
+        depositArray = depositArray.concat(frogArray);
+        //depositArray = depositArray.concat(storageArray);
+        creep.memory.to = depositArray;
+    }
+    if (!creep.memory.from) {
+        const r = creep.room;
+        let storageArray = r.storageIDs();
+        let containerArray= r.containerIDs();
+        let gatherArray = storageArray.concat(containerArray);
+        creep.memory.from = [_.max(gatherArray, function(containerID) {
+            return Game.getObjectById(containerID).store[RESOURCE_ENERGY];
+        })];
+    }
+    //in rcl3 we want newts to haul from containers to spawn energy array and tower
+    if (creep.carry.energy === 0) {
+        creep.memory.important = 'gather';
+    } else if (creep.carry.energy === creep.carryCapacity) {
+        creep.memory.important = 'deposit';
+    }
+    act(creep);
+    depositAura(creep);
+    gatherAura(creep);
+}
+
+function poliwog(creep) {
+  gatherAura(creep);
+    if (creep.carry.energy === 0) {
+        creep.memory.important = 'mine';
+    } else if (creep.carry.energy == creep.carryCapacity) {
+        creep.memory.important = 'colonize';
+    }
+    act(creep);
+}
+
+function redspawn(creep) {
+  depositAura(creep);
+    //before the extensions are built
+    if (creep.room.extensionIDs().length < 5) {
+        //if redspawn count is below threshold
+        if (_(Memory.creeps).filter({
+                role: 'redspawn'
+            }, {
+                room: creep.room.name
+            }).size() < creep.memory.max) {
+            if (!creep.memory.to) {
+                const r = creep.room;
+                let extensionArray = r.extensionIDs();
+                //console.log(extensionArray);
+                let spawnerArray = r.spawnerIDs();
+                //console.log(spawnerArray);
+                let depositArray = spawnerArray.concat(extensionArray);
+                creep.memory.to = depositArray;
+            }
+            //we need to put energy in the spawn
+            if (creep.carry.energy === 0) {
+                creep.memory.important = 'mine';
+            } else if (creep.carry.energy === creep.carryCapacity) {
+                creep.memory.important = 'deposit';
+            }
+        } else {
+            //if redspawn count is equal to or above threshold build
+            if (creep.carry.energy === 0) {
+                creep.memory.important = 'mine';
+            } else if (creep.carry.energy === creep.carryCapacity) {
+                creep.memory.important = 'build';
+            }
+        }
     }else{
-      creep.moveTo(Game.getObjectById(creep.memory.from[0]));
+      if(!creep.memory.reset){
+        creep.memory.resetTo = true;
+        creep.memory.to = null;
+      }
+      //if extension count is fulfilled
+      //specify the creep deposit array
+      if (!creep.memory.to) {
+          const r = creep.room;
+          let extensionArray = r.extensionIDs();
+          //console.log(extensionArray);
+          let spawnerArray = r.spawnerIDs();
+          //console.log(spawnerArray);
+          let depositArray = spawnerArray.concat(extensionArray);
+          creep.memory.to = depositArray;
+      }
+      //if the spawn energy is at max
+      if(creep.room.energyAvailable == creep.room.energyCapacityAvailable){
+        if (creep.carry.energy === 0) {
+            creep.memory.important = 'mine';
+        } else if (creep.carry.energy === creep.carryCapacity) {
+            creep.memory.important = 'build';
+        }
+      }else{
+        if (creep.carry.energy === 0) {
+            creep.memory.important = 'mine';
+        } else if (creep.carry.energy === creep.carryCapacity) {
+            creep.memory.important = 'deposit';
+        }
+      }
+
     }
+    act(creep);
+    gatherAura(creep);
 }
 
-function assignSpot(creep){
-  for(let source in Memory.rooms[creep.room.name].sources){
-    if(Memory.rooms[creep.room.name].lastAssignedSource == source){
-      continue;
-    }
-    for(let spot in Memory.rooms[creep.room.name].sources[source].spots){
-      if(!Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot])){
-          Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
-          Memory.rooms[creep.room.name].lastAssignedSource = source;
-          return source;
-        }else if(creep.memory.priority > Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).memory.priority){
-          Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).suicide();
-          Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
-          Memory.rooms[creep.room.name].lastAssignedSource = source;
-          return source;
+function squatter(creep) {
+    //var extend = reds(creep);
+    var target = Game.flags['claim'];
+    if (target) {
+        creep.moveTo(target);
+        if (creep.room === Game.flags['claim'].room) {
+            if (creep.claimController(creep.room.controller) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(creep.room.controller);
+            }
+        }
+    } else {
+        if(Game.getObjectById(creep.memory.home).recycleCreep(creep)==ERR_NOT_IN_RANGE){
+          creep.moveTo(Game.getObjectById(creep.memory.home));
         }
     }
+}
+
+function spawnSquatter(){
+  Game.spawns.Spawn1.createCreep([CLAIM, MOVE], Game.time + '_squatter');
+}
+
+function tadpole(creep) {
+    //before the extensions are built
+    if (creep.room.extensionIDs().length < 10) {
+        //if tadpole count is below threshold
+        if (_(Memory.creeps).filter({
+                role: 'tadpole'
+            }, {
+                room: creep.room.name
+            }).size() < creep.memory.max) {
+            if (!creep.memory.to) {
+                const r = creep.room;
+                let extensionArray = r.extensionIDs();
+                //console.log(extensionArray);
+                let spawnerArray = r.spawnerIDs();
+                //console.log(spawnerArray);
+                let depositArray = spawnerArray.concat(extensionArray);
+                creep.memory.to = depositArray;
+            }
+            //we need to put energy in the spawn
+            if (creep.carry.energy === 0) {
+                creep.memory.important = 'mine';
+            } else if (creep.carry.energy === creep.carryCapacity) {
+                creep.memory.important = 'deposit';
+            }
+        } else {
+            //if tadpole count is equal to or above threshold build
+            if (creep.carry.energy === 0) {
+                creep.memory.important = 'mine';
+            } else if (creep.carry.energy === creep.carryCapacity) {
+                creep.memory.important = 'build';
+            }
+        }
+    }else{
+      if(!creep.memory.reset){
+        creep.memory.resetTo = true;
+        creep.memory.to = null;
+      }
+      //if extension count is fulfilled
+      //specify the creep deposit array
+      if (!creep.memory.to) {
+          const r = creep.room;
+          let extensionArray = r.extensionIDs();
+          //console.log(extensionArray);
+          let spawnerArray = r.spawnerIDs();
+          //console.log(spawnerArray);
+          let depositArray = spawnerArray.concat(extensionArray);
+          creep.memory.to = depositArray;
+      }
+      //if the spawn energy is at max
+      if(creep.room.energyAvailable == creep.room.energyCapacityAvailable){
+        if (creep.carry.energy === 0) {
+            creep.memory.important = 'mine';
+        } else if (creep.carry.energy === creep.carryCapacity) {
+            creep.memory.important = 'build';
+        }
+      }else{
+        if (creep.carry.energy === 0) {
+            creep.memory.important = 'mine';
+        } else if (creep.carry.energy === creep.carryCapacity) {
+            creep.memory.important = 'deposit';
+        }
+      }
+
+    }
+    act(creep);
+    depositAura(creep);
+    gatherAura(creep);
+}
+
+function toad(creep) {
+  if(creep.carry[creep.resourceType] === 0){
+    creep.memory.important = 'mine';
   }
-  return creep.pos.findClosestByRange(FIND_SOURCES).id;
-}
-
-function mine(creep) {
-    if(!creep.memory.mine){
-      creep.memory.mine = assignSpot(creep);
-    }
-    var target = Game.getObjectById(creep.memory.mine);
-    switch (creep.harvest(target)) {
-        case 0:
-            //creep successfuly mined
-            creep.say('$', true);
-            //if our miner has a to designation try to deposit immediately
-            if (creep.memory.to && creep.memory.role == 'toad') {
-                var minerContainer = Game.getObjectById(creep.memory.to);
-                creep.moveTo(minerContainer);
-                creep.upgradeController(creep.room.controller);
-                //transfer unless containers are full
-                if (creep.transfer(minerContainer, creep.memory.resourceType) < 0) {
-                    //if containers are full attempt to drop into storage
-                    if(creep.transfer(creep.room.storage, creep.memory.resourceType) < 0){
-                      //else upgrade if possible
-                      creep.upgradeController(creep.room.controller);
-                    }
-                }
-            }else{
-              if(creep.memory.role == 'toad'){
-                creep.upgradeController(creep.room.controller);
-              }
-            }
-            break;
-        case -1:
-            //don't own the creep or source is claimed
-            creep.say('¯\\_(ツ)_/¯', false);
-            break;
-        case -4:
-            //creep is busy
-            creep.say('I\'m busy', false);
-            break;
-        case -5:
-            //Extractor not found?
-            creep.say('¯\\_(ツ)_/¯', false);
-            break;
-        case -6:
-            //out of energy in source
-            creep.say('Empty', false);
-            creep.moveTo(target);
-
-            //for when sim works again
-            if (creep.memory.renew === true && creep.ticksToLive < 1000) {
-                creep.memory.important = 'eat';
-            }
-
-            break;
-        case -7:
-            //invalid target
-            creep.say('Bad Target', false);
-            break;
-        case -9:
-            //move in
-            creep.moveTo(target);
-            return creep.harvest(target);
-        case -12:
-            //no work body parts
-            creep.say('¯\\_(ツ)_/¯', false);
-            break;
+  gatherAura(creep);
+  //in rcl3 we want toads to mine sources and deposit to containers
+  act(creep);
+    if (!creep.memory.to) {
+        var source = Game.getObjectById(creep.memory.mine);
+        var container = source.pos.findClosestByRange(FIND_STRUCTURES, {filter : (c) => c.structureType == STRUCTURE_CONTAINER});
+        if(container){
+          creep.memory.to = [container.id];
+        }
     }
 }
 
-function upgrade(creep) {
-    if (creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
-        creep.moveTo(creep.room.controller);
-        creep.upgradeController(creep.room.controller);
-    }
+function tower(structure) {
+  var nearenemies = structure.pos.findInRange(FIND_HOSTILE_CREEPS, 15);
+  if (!Memory.towers[structure.id]) {
+      Memory.towers[structure.id] = {};
+  }
+  if (!Memory.towers[structure.id].mode) {
+      Memory.towers[structure.id].mode = 'alert';
+  }
+	if(structure.energy <= 900 || nearenemies.length > 0){
+	    Memory.towers[structure.id].mode = 'alert';
+	}else if(structure.energy > 900){
+	    Memory.towers[structure.id].mode = 'repair';
+	}
+  var mode = Memory.towers[structure.id].mode;
+	if(mode == 'alert'){
+	    var hurt = structure.room.find(FIND_MY_CREEPS, {filter: object => object.hits < object.hitsMax});
+    	if(nearenemies.length > 0){
+    	    if(nearenemies.length > 1){
+    	        nearenemies.sort((a,b) => a.hits - b.hits);
+    	    }
+            structure.attack(nearenemies[0]);
+        }else if(hurt.length > 0){
+    	    if(hurt.length >1){
+    	        hurt.sort((a,b) => a.hits - b.hits);
+    	    }
+            structure.heal(hurt[0]);
+        }
+
+
+	}else if(mode == 'repair'){
+	    var damaged = structure.room.find(FIND_STRUCTURES, {filter: object => (object.hitsMax/2 > object.hits)&&(object.hits < 100000)});
+        //console.log('Detecting damaged structures');
+        if(damaged.length > 0){
+          //console.log('Attempting to repair now');
+    	    if(damaged.length >1){
+    	        damaged.sort((a,b) => (a.hits - b.hits));
+    	    }
+          // console.log('check repair sort: ');
+          //console.log(damaged);
+          structure.repair(damaged[0]);
+        }
+	}else{
+	    if(nearenemies.length > 0){
+    	    if(nearenemies.length >1){
+    	        nearenemies.sort((a,b) => a.hits - b.hits);
+    	    }
+            structure.attack(nearenemies[0]);
+        }
+	}
 }
 
 // Callback is a class (use with new) that stores functions to call
@@ -833,344 +1000,250 @@ function collect_stats() {
     //console.log(JSON.stringify(global.stats_callbacks));
 }
 
-function act(creep) {
-    switch (creep.memory.important) {
-        case 'build':
-            build(creep);
-            break;
-        case 'deposit':
-            deposit(creep);
-            break;
-        case 'eat':
-            eat(creep);
-            break;
-        case 'gather':
-            gather(creep);
-            break;
-        case 'mine':
-            mine(creep);
-            break;
-        case 'upgrade':
-            upgrade(creep);
-            break;
+function build(creep) {
+  //Find closest construction site and store in memory
+  if(creep.memory.colony){
+    creep.memory.target = Game.getObjectById(creep.memory.colony);
+  }else{
+    creep.memory.target = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
+  }
+
+    //if no target is successfully stored
+    if (!creep.memory.target || creep.memory.target === null) {
+        //upgrade instead
+        if (creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
+            creep.moveTo(creep.room.controller);
+            creep.upgradeController(creep.room.controller);
+        }
     }
+    //otherwise build at the site
+    else if(creep.build(creep.memory.target) == ERR_NOT_IN_RANGE) {
+        creep.moveTo(creep.memory.target);
+        creep.build(creep.memory.target);
+    }
+    creep.moveTo(creep.memory.target);
 }
 
-function gatherAura(creep) {
-        var shinies = creep.pos.findInRange(FIND_DROPPED_RESOURCES, 1, {
-            filter: r => r.resourceType == RESOURCE_ENERGY
-        });
-        var moarshinies = creep.pos.findInRange(FIND_STRUCTURES, 1, {
-            filter: s => s.structureType == STRUCTURE_CONTAINER
-        });
-        var evenmoarshinies = creep.pos.findInRange(FIND_STRUCTURES, 1, {
-            filter: s => s.structureType == STRUCTURE_STORAGE
-        });
-        if(creep.memory.role != 'newt' && creep.memory.role != 'toad'){
-          if (creep.withdraw(evenmoarshinies[0], RESOURCE_ENERGY) === 0) {
-              creep.say('shinies');
+function colonize(creep) {
+  //id of colony you want to build
+    if(!creep.memory.madeit){
+      creep.memory.madeit = 0;
+    }
+    //Check the colony room
+    if (Memory.colony) {
+      //relies on having both a room declared in memory and a claim flag in that room
+        creep.say('Hop To It!', true);
+        //console.log(Memory.colony+':'+creep.room.name);
+        if (creep.room.name !== Memory.colony) {
+          creep.moveTo(Game.flags['colonize']);
+        }else{
+          if(creep.memory.madeit === 0){
+              creep.memory.mine = creep.pos.findClosestByRange(FIND_SOURCES).id;
+              creep.memory.madeit = 1;
           }
-        }
-        if(creep.memory.role != 'toad'){
-          if (creep.withdraw(moarshinies[0], RESOURCE_ENERGY) === 0) {
-              creep.say('shinies');
+
+          if(!creep.memory.target || !Game.getObjectById(creep.memory.target)){
+            creep.memory.target = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES).id;
           }
+          //otherwise build at the site
+          creep.moveTo(Game.getObjectById(creep.memory.target));
+          creep.build(Game.getObjectById(creep.memory.target));
         }
-        if (creep.pickup(shinies[0]) === 0) {
-            creep.say('shinies');
-        }
-}
 
-function depositAura(creep) {
-        var nearExt = creep.pos.findInRange(FIND_MY_STRUCTURES, 1, {
-            filter: s => s.structureType == STRUCTURE_EXTENSION
-        });
-        //console.log(nearExt);
-        for(let e in nearExt){
-          //console.log(nearExt[e]);
-          if (creep.transfer(nearExt[e], RESOURCE_ENERGY) === 0) {
-              creep.say('teehee');
-          }
-        }
-}
-
-function frog(creep) {
-    if (!creep.memory.from) {
-        const r = creep.room;
-        let containerArray = r.containerIDs();
-        let gatherArray = r.storageIDs();
-        gatherArray = gatherArray.concat(containerArray);
-        creep.memory.from = gatherArray;
-    }
-    //in rcl3 we want frogs to build and upgrade
-    if (creep.carry.energy === 0) {
-        creep.memory.important = 'gather';
-    } else if (creep.carry.energy == creep.carryCapacity) {
-        creep.memory.important = 'build';
-    }
-    act(creep);
-    gatherAura(creep);
-}
-
-function newt(creep) {
-    depositAura(creep);
-    if (!creep.memory.to) {
-        const r = creep.room;
-        let extensionArray = r.extensionIDs();
-        let spawnerArray = r.spawnerIDs();
-        let towerArray = r.towerIDs();
-        //let storageArray = r.storageIDs();
-        let frogArray = r.roleIDs('frog');
-        let depositArray = spawnerArray.concat(extensionArray);
-        depositArray = depositArray.concat(towerArray);
-        depositArray = depositArray.concat(frogArray);
-        //depositArray = depositArray.concat(storageArray);
-        creep.memory.to = depositArray;
-    }
-    if (!creep.memory.from) {
-        const r = creep.room;
-        let storageArray = r.storageIDs();
-        let containerArray= r.containerIDs();
-        let gatherArray = storageArray.concat(containerArray);
-        creep.memory.from = [_.max(gatherArray, function(containerID) {
-            return Game.getObjectById(containerID).store[RESOURCE_ENERGY];
-        })];
-    }
-    //in rcl3 we want newts to haul from containers to spawn energy array and tower
-    if (creep.carry.energy === 0) {
-        creep.memory.important = 'gather';
-    } else if (creep.carry.energy === creep.carryCapacity) {
-        creep.memory.important = 'deposit';
-    }
-    act(creep);
-    depositAura(creep);
-    gatherAura(creep);
-}
-
-function redspawn(creep) {
-  depositAura(creep);
-    //before the extensions are built
-    if (creep.room.extensionIDs().length < 5) {
-        //if redspawn count is below threshold
-        if (_(Memory.creeps).filter({
-                role: 'redspawn'
-            }, {
-                room: creep.room.name
-            }).size() < creep.memory.max) {
-            if (!creep.memory.to) {
-                const r = creep.room;
-                let extensionArray = r.extensionIDs();
-                //console.log(extensionArray);
-                let spawnerArray = r.spawnerIDs();
-                //console.log(spawnerArray);
-                let depositArray = spawnerArray.concat(extensionArray);
-                creep.memory.to = depositArray;
-            }
-            //we need to put energy in the spawn
-            if (creep.carry.energy === 0) {
-                creep.memory.important = 'mine';
-            } else if (creep.carry.energy === creep.carryCapacity) {
-                creep.memory.important = 'deposit';
-            }
-        } else {
-            //if redspawn count is equal to or above threshold build
-            if (creep.carry.energy === 0) {
-                creep.memory.important = 'mine';
-            } else if (creep.carry.energy === creep.carryCapacity) {
-                creep.memory.important = 'build';
-            }
-        }
-    }else{
-      if(!creep.memory.reset){
-        creep.memory.resetTo = true;
-        creep.memory.to = null;
-      }
-      //if extension count is fulfilled
-      //specify the creep deposit array
-      if (!creep.memory.to) {
-          const r = creep.room;
-          let extensionArray = r.extensionIDs();
-          //console.log(extensionArray);
-          let spawnerArray = r.spawnerIDs();
-          //console.log(spawnerArray);
-          let depositArray = spawnerArray.concat(extensionArray);
-          creep.memory.to = depositArray;
-      }
-      //if the spawn energy is at max
-      if(creep.room.energyAvailable == creep.room.energyCapacityAvailable){
-        if (creep.carry.energy === 0) {
-            creep.memory.important = 'mine';
-        } else if (creep.carry.energy === creep.carryCapacity) {
-            creep.memory.important = 'build';
-        }
-      }else{
-        if (creep.carry.energy === 0) {
-            creep.memory.important = 'mine';
-        } else if (creep.carry.energy === creep.carryCapacity) {
-            creep.memory.important = 'deposit';
-        }
-      }
-
-    }
-    act(creep);
-    gatherAura(creep);
-}
-
-function squatter(creep) {
-    //var extend = reds(creep);
-    var target = Game.flags['claim'];
-    if (target) {
-        creep.moveTo(target);
-        if (creep.room === Game.flags['claim'].room) {
-            if (creep.claimController(creep.room.controller) == ERR_NOT_IN_RANGE) {
-                creep.moveTo(creep.room.controller);
-            }
-        }
     } else {
-        if(Game.getObjectById(creep.memory.home).recycleCreep(creep)==ERR_NOT_IN_RANGE){
-          creep.moveTo(Game.getObjectById(creep.memory.home));
+        creep.say('No Ticket');
+    }
+}
+
+//takes an array of deposit target IDs and deposits into them in the order given
+//until each are full
+function deposit(creep) {
+  const resourceType = creep.memory.resourceType;
+    //for each item in the to Array
+    for (let id in creep.memory.to) {
+        if (creep.memory.to[id]){
+          //create an object from the id
+          var target = Game.getObjectById(creep.memory.to[id]);
+          //if the target has at least as much energy as the creep can hold currently
+          if(target){
+            if ((target.energy < target.energyCapacity)||(_.sum(target.carry) < target.carryCapacity)||(_.sum(target.store) < target.storeCapacity)) {
+                // gather resources
+                //console.log('deposit target:'+target);
+                if (creep.transfer(target, resourceType) == ERR_NOT_IN_RANGE) {
+                    creep.moveTo(target);
+                    creep.transfer(target, resourceType);
+                }
+                //return true to end loop after resources transfer or don't for the first valid target
+                return true;
+            }else{
+              creep.moveTo(target);
+            }  
+          }
         }
     }
 }
 
-function spawnSquatter(){
-  Game.spawns.Spawn1.createCreep([CLAIM, MOVE], Game.time + '_squatter');
+function eat(creep) {
+    var spawn = Game.getObjectById(creep.memory.home);
+    //console.log(spawn.renewCreep(creep));
+    if (spawn.renewCreep(creep) == ERR_NOT_IN_RANGE) {
+        creep.moveTo(spawn);
+    }
+
+    switch (spawn.renewCreep(creep)) {
+        case 0:
+            //creep successfuly eats
+            creep.say('NOM', true);
+            break;
+        case -1:
+            //don't own the spawn
+            creep.say('¯\\_(ツ)_/¯', false);
+            break;
+        case -4:
+            //spawn is busy
+            creep.say('Waiting', false);
+            break;
+        case -6:
+            //out of energy in spawn array
+            creep.say('Empty', false);
+            creep.memory.important = 'mine';
+            break;
+        case -7:
+            //invalid target
+            creep.say('Bad Target', false);
+            break;
+        case -8:
+            //creep is full
+            creep.memory.important = 'mine';
+            break;
+    }
 }
 
-function tadpole(creep) {
-    //before the extensions are built
-    if (creep.room.extensionIDs().length < 10) {
-        //if tadpole count is below threshold
-        if (_(Memory.creeps).filter({
-                role: 'tadpole'
-            }, {
-                room: creep.room.name
-            }).size() < creep.memory.max) {
-            if (!creep.memory.to) {
-                const r = creep.room;
-                let extensionArray = r.extensionIDs();
-                //console.log(extensionArray);
-                let spawnerArray = r.spawnerIDs();
-                //console.log(spawnerArray);
-                let depositArray = spawnerArray.concat(extensionArray);
-                creep.memory.to = depositArray;
-            }
-            //we need to put energy in the spawn
-            if (creep.carry.energy === 0) {
-                creep.memory.important = 'mine';
-            } else if (creep.carry.energy === creep.carryCapacity) {
-                creep.memory.important = 'deposit';
-            }
-        } else {
-            //if tadpole count is equal to or above threshold build
-            if (creep.carry.energy === 0) {
-                creep.memory.important = 'mine';
-            } else if (creep.carry.energy === creep.carryCapacity) {
-                creep.memory.important = 'build';
-            }
-        }
+//takes an array of deposit target IDs and gathers from them in the order given
+//until each are full
+function gather(creep) {
+    const resourceType = creep.memory.resourceType;
+    try{
+      var target =_.max(creep.memory.from, function(containerID) {
+          return Game.getObjectById(containerID).store[RESOURCE_ENERGY];
+      });
+    }catch (err){
+      console.log('storage no longer present');
+      creep.memory.from = null;
+    }
+    //console.log('target: '+target);
+    if(target){
+      var containerMax = Game.getObjectById(target);
+    }
+    if(containerMax.store){
+      //if the target has at least as much energy as the creep can hold currently
+      if (containerMax.store[resourceType] >= 50) {
+          // gather resources
+          if (creep.withdraw(containerMax, resourceType) == ERR_NOT_IN_RANGE) {
+              creep.moveTo(containerMax);
+              creep.withdraw(containerMax, resourceType);
+          }
+          //return true to end loop after resources transfer or don't for the first valid target
+          return true;
+      }
+      //creep.moveTo(Game.getObjectById(creep.memory.from[0]));
     }else{
-      if(!creep.memory.reset){
-        creep.memory.resetTo = true;
-        creep.memory.to = null;
-      }
-      //if extension count is fulfilled
-      //specify the creep deposit array
-      if (!creep.memory.to) {
-          const r = creep.room;
-          let extensionArray = r.extensionIDs();
-          //console.log(extensionArray);
-          let spawnerArray = r.spawnerIDs();
-          //console.log(spawnerArray);
-          let depositArray = spawnerArray.concat(extensionArray);
-          creep.memory.to = depositArray;
-      }
-      //if the spawn energy is at max
-      if(creep.room.energyAvailable == creep.room.energyCapacityAvailable){
-        if (creep.carry.energy === 0) {
-            creep.memory.important = 'mine';
-        } else if (creep.carry.energy === creep.carryCapacity) {
-            creep.memory.important = 'build';
-        }
-      }else{
-        if (creep.carry.energy === 0) {
-            creep.memory.important = 'mine';
-        } else if (creep.carry.energy === creep.carryCapacity) {
-            creep.memory.important = 'deposit';
-        }
-      }
-
-    }
-    act(creep);
-    depositAura(creep);
-    gatherAura(creep);
-}
-
-function toad(creep) {
-  if(creep.carry[creep.resourceType] === 0){
-    creep.memory.important = 'mine';
-  }
-  gatherAura(creep);
-  //in rcl3 we want toads to mine sources and deposit to containers
-  act(creep);
-    if (!creep.memory.to) {
-        var source = Game.getObjectById(creep.memory.mine);
-        var container = source.pos.findClosestByRange(FIND_STRUCTURES, {filter : (c) => c.structureType == STRUCTURE_CONTAINER});
-        if(container){
-          creep.memory.to = [container.id];
-        }
+      //creep.moveTo(Game.getObjectById(creep.memory.from[0]));
     }
 }
 
-function tower(structure) {
-  var nearenemies = structure.pos.findInRange(FIND_HOSTILE_CREEPS, 15);
-  if (!Memory.towers[structure.id]) {
-      Memory.towers[structure.id] = {};
+function assignSpot(creep){
+  for(let source in Memory.rooms[creep.room.name].sources){
+    if(Memory.rooms[creep.room.name].lastAssignedSource == source){
+      continue;
+    }
+    for(let spot in Memory.rooms[creep.room.name].sources[source].spots){
+      if(!Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot])){
+          Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
+          Memory.rooms[creep.room.name].lastAssignedSource = source;
+          return source;
+        }else if(creep.memory.priority > Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).memory.priority){
+          Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).suicide();
+          Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
+          Memory.rooms[creep.room.name].lastAssignedSource = source;
+          return source;
+        }
+    }
   }
-  if (!Memory.towers[structure.id].mode) {
-      Memory.towers[structure.id].mode = 'alert';
-  }
-	if(structure.energy <= 900 || nearenemies.length > 0){
-	    Memory.towers[structure.id].mode = 'alert';
-	}else if(structure.energy > 900){
-	    Memory.towers[structure.id].mode = 'repair';
-	}
-  var mode = Memory.towers[structure.id].mode;
-	if(mode == 'alert'){
-	    var hurt = structure.room.find(FIND_MY_CREEPS, {filter: object => object.hits < object.hitsMax});
-    	if(nearenemies.length > 0){
-    	    if(nearenemies.length > 1){
-    	        nearenemies.sort((a,b) => a.hits - b.hits);
-    	    }
-            structure.attack(nearenemies[0]);
-        }else if(hurt.length > 0){
-    	    if(hurt.length >1){
-    	        hurt.sort((a,b) => a.hits - b.hits);
-    	    }
-            structure.heal(hurt[0]);
-        }
+  return creep.pos.findClosestByRange(FIND_SOURCES).id;
+}
 
+function mine(creep) {
+    if(!creep.memory.mine){
+      creep.memory.mine = assignSpot(creep);
+    }
+    var target = Game.getObjectById(creep.memory.mine);
+    switch (creep.harvest(target)) {
+        case 0:
+            //creep successfuly mined
+            creep.say('$', true);
+            //if our miner has a to designation try to deposit immediately
+            if (creep.memory.to && creep.memory.role == 'toad') {
+                var minerContainer = Game.getObjectById(creep.memory.to);
+                creep.moveTo(minerContainer);
+                creep.upgradeController(creep.room.controller);
+                //transfer unless containers are full
+                if (creep.transfer(minerContainer, creep.memory.resourceType) < 0) {
+                    //if containers are full attempt to drop into storage
+                    if(creep.transfer(creep.room.storage, creep.memory.resourceType) < 0){
+                      //else upgrade if possible
+                      creep.upgradeController(creep.room.controller);
+                    }
+                }
+            }else{
+              if(creep.memory.role == 'toad'){
+                creep.upgradeController(creep.room.controller);
+              }
+            }
+            break;
+        case -1:
+            //don't own the creep or source is claimed
+            creep.say('¯\\_(ツ)_/¯', false);
+            break;
+        case -4:
+            //creep is busy
+            creep.say('I\'m busy', false);
+            break;
+        case -5:
+            //Extractor not found?
+            creep.say('¯\\_(ツ)_/¯', false);
+            break;
+        case -6:
+            //out of energy in source
+            creep.say('Empty', false);
+            creep.moveTo(target);
 
-	}else if(mode == 'repair'){
-	    var damaged = structure.room.find(FIND_STRUCTURES, {filter: object => (object.hitsMax/2 > object.hits)&&(object.hits < 100000)});
-        //console.log('Detecting damaged structures');
-        if(damaged.length > 0){
-          //console.log('Attempting to repair now');
-    	    if(damaged.length >1){
-    	        damaged.sort((a,b) => (a.hits - b.hits));
-    	    }
-          // console.log('check repair sort: ');
-          //console.log(damaged);
-          structure.repair(damaged[0]);
-        }
-	}else{
-	    if(nearenemies.length > 0){
-    	    if(nearenemies.length >1){
-    	        nearenemies.sort((a,b) => a.hits - b.hits);
-    	    }
-            structure.attack(nearenemies[0]);
-        }
-	}
+            //for when sim works again
+            if (creep.memory.renew === true && creep.ticksToLive < 1000) {
+                creep.memory.important = 'eat';
+            }
+
+            break;
+        case -7:
+            //invalid target
+            creep.say('Bad Target', false);
+            break;
+        case -9:
+            //move in
+            creep.moveTo(target);
+            return creep.harvest(target);
+        case -12:
+            //no work body parts
+            creep.say('¯\\_(ツ)_/¯', false);
+            break;
+    }
+}
+
+function upgrade(creep) {
+    if (creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
+        creep.moveTo(creep.room.controller);
+        creep.upgradeController(creep.room.controller);
+    }
 }
 
 function eraseDead() {
