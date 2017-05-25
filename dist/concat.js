@@ -2,28 +2,28 @@ function findSources(r) {
     return r.find(FIND_SOURCES);
 }
 
-ConstructionSite.prototype.debrief = function () {
- //add to gather object
- delete this.room.memory.jobs.build.tasks[this.id];
-};
-
-StructureContainer.prototype.report = function () {
- if (this.store.energy > 0) {
-  //add to gather object
-  this.room.memory.jobs.withdraw.tasks[this.id] = this.energy;
+function assignSpot(creep) {
+ for (let source in Memory.rooms[creep.room.name].sources) {
+  if (Memory.rooms[creep.room.name].lastAssignedSource == source) {
+   continue;
+  }
+  for (let spot in Memory.rooms[creep.room.name].sources[source].spots) {
+   if (!Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot])) {
+    Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
+    Memory.rooms[creep.room.name].lastAssignedSource = source;
+    return source;
+   } else if (creep.memory.priority > Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).memory.priority) {
+    Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).suicide();
+    Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
+    Memory.rooms[creep.room.name].lastAssignedSource = source;
+    return source;
+   }
+  }
  }
-};
-StructureContainer.prototype.debrief = function () {
- if (this.store.energy === 0) {
-  delete this.room.memory.withdraw.tasks[this.id];
- }
-};
+ return creep.pos.findClosestByRange(FIND_SOURCES).id;
+}
 
-StructureController.prototype.debrief = function () {
- return true;
-};
-
-//assign task
+//assign task takes string for creep action and assigns creep to corresponding task if any present in room.job[job].tasks
 Creep.prototype.assignTask = function (job) {
  //you know you can get objects by simulated index by getting the keys
  var tasksKeys = Object.keys(this.room.memory.jobs[job].tasks);
@@ -77,49 +77,55 @@ Creep.prototype.assignTask = function (job) {
  }
 };
 
-//act
-Creep.prototype.act = function (job) {
- //if the creep memory can't substantiate an object
- if (!Game.getObjectById(this.memory[job].id)) {
-  //that isn't there any more
-  console.log('can not instantiate target object for ' + job);
-  this.memory[job].id = this.assignTask(job);
- }
-
- let project = Game.getObjectById(this.memory[job]);
- console.log('creep attempting to ' + job + ' with ' + this[job](project));
- switch (this[job](project)) {
- case 0:
-  //creep successfuly acted
-  this.say('ribbit', true);
-  project.debrief();
-  return true;
+function spawnCreep(spawn, creepRecipe, rcl) {
+ switch (spawn.createCreep(creepRecipe.parts[rcl], Game.time, creepRecipe.options)) {
  case -1:
   //don't own the creep
-  console.log('You do not own the creep being told to ' + job);
+  console.log('You do not own the spawn being told to create a creep');
+  break;
+ case -3:
+  //creep name already taken
+  console.log('There is already a creep with this name');
   break;
  case -4:
   //creep is being spawned
-  this.say('Spawning', false);
+  console.log('Spawn is already spawning  creep');
   break;
  case -6:
   //no more energy to spend
-  this.say('Empty', false);
+  console.log('Not enough energy to spawn creep');
   break;
- case -7:
-  //invalid target
-  this.say('Bad Target', false);
-  this.memory[job] = this.assignTask(job);
+ case -10:
+  //invalid body
+  console.log('Body part array not properly formed: ');
+  console.log(JSON.stringify(creepRecipe.parts[rcl]));
   break;
- case -9:
-  //set move
-  this.moveByPath(creep.memory[job].path);
-  break;
- case -12:
-  //no work body parts
-  this.say('¯\\_(ツ)_/¯', false);
-  break;
+ case -14:
+  //rcl dropped
+  console.log('RCL no longer sufficient to use this spawn');
  }
+}
+
+ConstructionSite.prototype.debrief = function () {
+ //add to gather object
+ delete this.room.memory.jobs.build.tasks[this.id];
+};
+//don't need to report because we do that in our main
+
+StructureContainer.prototype.report = function () {
+ if (this.store.energy > 0) {
+  //add to gather object
+  this.room.memory.jobs.withdraw.tasks[this.id] = this.energy;
+ }
+};
+StructureContainer.prototype.debrief = function () {
+ if (this.store.energy === 0) {
+  delete this.room.memory.withdraw.tasks[this.id];
+ }
+};
+
+StructureController.prototype.debrief = function () {
+ return true;
 };
 
 //eat action
@@ -214,10 +220,6 @@ Room.prototype.miningSpots = function (sources) {
  return miningspots;
 };
 
-Source.prototype.debrief = function () {
- return true;
-};
-
 StructureSpawn.prototype.report = function () {
  if (this.energy < this.energyCapacity) {
   //add to deposit array
@@ -255,56 +257,6 @@ StructureTower.prototype.debrief = function () {
   delete this.room.memory.jobs.transfer.tasks[this.id];
  }
 };
-
-function assignSpot(creep) {
- for (let source in Memory.rooms[creep.room.name].sources) {
-  if (Memory.rooms[creep.room.name].lastAssignedSource == source) {
-   continue;
-  }
-  for (let spot in Memory.rooms[creep.room.name].sources[source].spots) {
-   if (!Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot])) {
-    Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
-    Memory.rooms[creep.room.name].lastAssignedSource = source;
-    return source;
-   } else if (creep.memory.priority > Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).memory.priority) {
-    Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).suicide();
-    Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
-    Memory.rooms[creep.room.name].lastAssignedSource = source;
-    return source;
-   }
-  }
- }
- return creep.pos.findClosestByRange(FIND_SOURCES).id;
-}
-
-function spawnCreep(spawn, creepRecipe, rcl) {
- switch (spawn.createCreep(creepRecipe.parts[rcl], Game.time, creepRecipe.options)) {
- case -1:
-  //don't own the creep
-  console.log('You do not own the spawn being told to create a creep');
-  break;
- case -3:
-  //creep name already taken
-  console.log('There is already a creep with this name');
-  break;
- case -4:
-  //creep is being spawned
-  console.log('Spawn is already spawning  creep');
-  break;
- case -6:
-  //no more energy to spend
-  console.log('Not enough energy to spawn creep');
-  break;
- case -10:
-  //invalid body
-  console.log('Body part array not properly formed: ');
-  console.log(JSON.stringify(creepRecipe.parts[rcl]));
-  break;
- case -14:
-  //rcl dropped
-  console.log('RCL no longer sufficient to use this spawn');
- }
-}
 
 function gatherAura(creep) {
  var shinies = creep.pos.findInRange(FIND_DROPPED_RESOURCES, 1, {
@@ -345,22 +297,131 @@ function depositAura(creep) {
 }
 
 function frog(creep) {
- //if creep has no energy
+ //state flipper
  if (creep.carry.energy === 0) {
-  creep.act('eat');
-  creep.act('harvest');
-  creep.act('withdraw');
+  creep.memory.state = 0;
  }
  //if creep has energy
  else if (creep.carry.energy === creep.carryCapacity) {
-  creep.act('eat');
-  creep.act('upgradeController');
-  creep.act('repair');
-  creep.act('build');
+  creep.memory.state = 1;
  }
-}
-if (!Memory.recipes) {
- Memory.recipes = {};
+
+ //if creep has energy
+ if (creep.memory.state) {
+  switch (creep.build(Game.getObjectById(creep.memory.build))) {
+  case 0:
+   //creep successfuly acted
+   creep.say('riBBit', true);
+   Game.getObjectById(creep.memory.build).debrief();
+   return 0;
+  case -7:
+   //invalid target
+   creep.say('Bad Target', false);
+   //remove old target from memory
+   Game.getObjectById(creep.memory.build).debrief();
+   //assign new target
+   creep.memory.build = creep.assignTask('build');
+   //head towards upgrader if this repeats
+   if (creep.upgradeController(Game.getObjectById(creep.room.controller)) == -9) {
+    creep.moveTo(Game.getObjectById(creep.room.controller), {
+     visualizePathStyle: {
+      fill: '#ccff66',
+      stroke: '#ccff66',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   }
+   return -7;
+  case -9:
+   //set move
+   creep.moveTo(Game.getObjectById(creep.memory.withdraw), {
+    visualizePathStyle: {
+     fill: '#ccff66',
+     stroke: '#ccff66',
+     lineStyle: 'dashed',
+     strokeWidth: .15,
+     opacity: .1
+    }
+   });
+   return -9;
+  }
+ }
+ //if creep has no energy
+ else {
+  switch (creep.withdraw(Game.getObjectById(creep.memory.withdraw))) {
+  case 0:
+   //creep successfuly acted
+   creep.say('RibbiT', true);
+   return 0;
+  case -6:
+   //not enough resources
+   //remove withdraw target from memory
+   Game.getObjectById(creep.memory.withdraw).debrief();
+   //assign new withdraw target
+   creep.memory.withdraw = creep.assignTask('withdraw');
+   //head towards mining if this repeats
+   if (creep.harvest(creep.memory.harvest) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.harvest), {
+     visualizePathStyle: {
+      fill: '#ccff66',
+      stroke: '#ccff66',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   }
+   return -6;
+  case -7:
+   //invalid target
+   creep.say('Bad Target', false);
+   //remove old target from memory
+   Game.getObjectById(creep.memory.withdraw).debrief();
+   //assign new target
+   creep.memory.withdraw = creep.assignTask('withdraw');
+   //head towards mining if this repeats
+   if (creep.harvest(Game.getObjectById(creep.memory.harvest)) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.harvest), {
+     visualizePathStyle: {
+      fill: '#ccff66',
+      stroke: '#ccff66',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   } else if (creep.harvest(creep.memory.harvest) == -6) {
+    //if sources are out of energy harvest
+    if (creep.eat(creep.memory.home) == -9) {
+     //bad target followed by empty sources = eat while you can
+     creep.moveTo(Game.getObjectById(creep.memory.home), {
+      visualizePathStyle: {
+       fill: '#ccff66',
+       stroke: '#ccff66',
+       lineStyle: 'dashed',
+       strokeWidth: .15,
+       opacity: .1
+      }
+     });
+    }
+   }
+   return -7;
+  case -9:
+   //set move
+   creep.moveTo(Game.getObjectById(creep.memory.withdraw), {
+    visualizePathStyle: {
+     fill: '#ccff66',
+     stroke: '#ccff66',
+     lineStyle: 'dashed',
+     strokeWidth: .15,
+     opacity: .1
+    }
+   });
+   return -9;
+  }
+ }
 }
 Memory.recipes.frog = {
  parts: {
@@ -391,15 +452,126 @@ Memory.recipes.frog = {
 };
 
 function newt(creep) {
- //if creep has no energy
+ //state flipper
  if (creep.carry.energy === 0) {
-  creep.act('withdraw');
-  creep.act('pickup');
+  creep.memory.state = 0;
  }
  //if creep has energy
  else if (creep.carry.energy === creep.carryCapacity) {
-  creep.act('eat');
-  creep.act('transfer');
+  creep.memory.state = 1;
+ }
+
+ //logic
+ if (creep.memory.state) {
+  switch (creep.transfer(Game.getObjectById(creep.memory.transfer), creep.memory.resourceType)) {
+  case 0:
+   //creep successfuly transferred
+   creep.say('slink', true);
+   Game.getObjectById(creep.memory.transfer).debrief();
+   return 0;
+  case -7:
+   //invalid target
+   creep.say('Bad Target', false);
+   creep.memory.transfer = creep.assignTask('transfer');
+   //head towards eating if this repeats
+   if (creep.eat(Game.getObjectById(creep.memory.home)) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.home), {
+     visualizePathStyle: {
+      fill: '#ffcc00',
+      stroke: '#ffcc00',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   }
+   return -7;
+  case -8:
+   //full target
+   creep.say('Full', false);
+   creep.memory.transfer = creep.assignTask('transfer');
+   //head towards eating if this repeats
+   if (creep.eat(Game.getObjectById(creep.memory.home)) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.home), {
+     visualizePathStyle: {
+      fill: '#ffcc00',
+      stroke: '#ffcc00',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   }
+   return -9;
+  case -9:
+   //move in
+   creep.moveTo(Game.getObjectById(creep.memory.transfer), {
+    visualizePathStyle: {
+     fill: '#ffcc00',
+     stroke: '#ffcc00',
+     lineStyle: 'dashed',
+     strokeWidth: .15,
+     opacity: .1
+    }
+   });
+   return creep.transfer(Game.getObjectById(creep.memory.transfer), creep.memory.resourceType);
+  }
+ }
+ //if creep has energy
+ else {
+  switch (creep.withdraw(Game.getObjectById(creep.memory.withdraw), creep.memory.resourceType)) {
+  case 0:
+   //creep successfuly transferred
+   creep.say('peep', true);
+   Game.getObjectById(creep.memory.withdraw).debrief();
+   return 0;
+  case -6:
+   //empty target
+   creep.say('Not Enough', false);
+   creep.memory.withdraw = creep.assignTask('withdraw');
+   //head towards eating if this repeats
+   if (creep.pickup(Game.getObjectById(creep.memory.pickup)) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.pickup), {
+     visualizePathStyle: {
+      fill: '#ffcc00',
+      stroke: '#ffcc00',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   }
+   return -6;
+  case -7:
+   //invalid target
+   creep.say('Bad Target', false);
+   creep.memory.withdraw = creep.assignTask('withdraw');
+   //head towards eating if this repeats
+   if (creep.pickup(Game.getObjectById(creep.memory.pickup)) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.pickup), {
+     visualizePathStyle: {
+      fill: '#ffcc00',
+      stroke: '#ffcc00',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   }
+   return -7;
+  case -9:
+   //move in
+   creep.moveTo(Game.getObjectById(creep.memory.withdraw), {
+    visualizePathStyle: {
+     fill: '#ffcc00',
+     stroke: '#ffcc00',
+     lineStyle: 'dashed',
+     strokeWidth: .15,
+     opacity: .1
+    }
+   });
+   return -9;
+  }
  }
 }
 
@@ -434,6 +606,9 @@ Memory.recipes.newt = {
 //we currently have no interest in taking rooms we can't build spawns in, so
 //initialize room goes here with our first building in any room
 function initialize(r) {
+ if (!Memory.recipes) {
+  Memory.recipes = {};
+ }
  //initialize room if not already initialized
  Memory.rooms[r.name] = {};
  if (!Memory.rooms[r.name].sc) {
@@ -518,35 +693,215 @@ function queen(spawn) {
  let frog = Memory.recipes.frog;
  let toad = Memory.recipes.toad;
  let newt = Memory.recipes.newt;
-
+ let withdrawCap = (r.memory.jobs.withdraw.tasks ? Object.keys(r.memory.jobs.withdraw.tasks).length : 0);
+ let frogCap = (r.memory.jobs.build.tasks ? Object.keys(r.memory.jobs.build.tasks).length : 0);
+ let pickupCap = (r.memory.jobs.pickup.tasks ? Object.keys(r.memory.jobs.pickup.tasks).length : 0);
  //we want to spawn creeps based on tasks needing to be done
  //so we have a variable count for toads since it takes a while for max mining on a single toad
  if (r.roleCount('toad') < r.memory.sc) {
   spawnCreep(spawn, toad, rcl);
- } //else if ((r.roleCount('newt') < Object.keys(r.gather).length) || (r.roleCount('newt') < Object.keys(r.sweep).length)) {
- //we make newts based on the amount of gather tasks we have
- //spawnCreep(spawn, newt);
- //} else if (r.roleCount('frog') < Object.keys(r.construct).length) {
- //we make frogs based on the amount of build tasks we have
- //spawnCreep(spawn, frog);
- //}
+ } else if ((r.roleCount('newt') < withdrawCap) || (r.roleCount('newt') < pickupCap)) {
+  //we make newts based on the amount of gather tasks we have
+  spawnCreep(spawn, newt);
+ } else if (r.roleCount('frog') < frogCap) {
+  //we make frogs based on the amount of build tasks we have
+  spawnCreep(spawn, frog);
+ }
 
 
 }
 
 function toad(creep) {
- //if creep has no energy
+ //state flipper
  if (creep.carry.energy === 0) {
-  //console.log('eat queued');
-  creep.act('eat');
-  //console.log('harvest queued');
-  creep.act('harvest');
+  creep.memory.state = 0;
  }
  //if creep has energy
- else if (creep.carry.energy > 0) {
-  creep.act('build');
-  creep.act('upgradeController');
-  creep.act('harvest');
+ else if (creep.carry.energy > 10) {
+  creep.memory.state = 1;
+ }
+
+ //if creep has energy
+ if (creep.memory.state) {
+  switch (creep.build(Game.getObjectById(creep.memory.build))) {
+  case 0:
+   //creep successfuly acted
+   creep.say('riBBit', true);
+   Game.getObjectById(creep.memory.build).debrief();
+   return 0;
+  case -7:
+   //invalid target
+   creep.say('Bad Target', false);
+   //remove old target from memory
+   if (Game.getObjectById(creep.memory.build)) {
+    Game.getObjectById(creep.memory.build).debrief();
+   }
+   //assign new target
+   creep.memory.build = creep.assignTask('build');
+   switch (creep.harvest(Game.getObjectById(creep.memory.harvest))) {
+   case 0:
+    //creep successfuly acted
+    creep.say('BwaK', true);
+    creep.upgradeController(Game.getObjectById(creep.room.controller));
+    return 0;
+   case -6:
+    //not enough resources
+    //head towards eating if this repeats
+    if (creep.eat(creep.memory.home) == -9) {
+     creep.moveTo(Game.getObjectById(creep.memory.home), {
+      visualizePathStyle: {
+       fill: '#ffcc66',
+       stroke: '#ffcc66',
+       lineStyle: 'dashed',
+       strokeWidth: .15,
+       opacity: .1
+      }
+     });
+    }
+    return -6;
+   case -7:
+    //invalid target
+    creep.say('Bad Target', false);
+    //assign new target
+    creep.memory.harvest = creep.assignTask('harvest');
+    //head towards eating if this repeats
+    if (creep.eat(creep.memory.home) == -9) {
+     creep.moveTo(Game.getObjectById(creep.memory.home), {
+      visualizePathStyle: {
+       fill: '#ffcc66',
+       stroke: '#ffcc66',
+       lineStyle: 'dashed',
+       strokeWidth: .15,
+       opacity: .1
+      }
+     });
+    }
+    return -7;
+   case -9:
+    //set move
+    creep.moveTo(Game.getObjectById(creep.memory.harvest), {
+     visualizePathStyle: {
+      fill: '#ffcc66',
+      stroke: '#ffcc66',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+    return -9;
+   }
+   return -7;
+  case -9:
+   //assign new target
+   creep.memory.build = creep.assignTask('build');
+   switch (creep.harvest(Game.getObjectById(creep.memory.harvest))) {
+   case 0:
+    //creep successfuly acted
+    creep.say('BwaK', true);
+    creep.upgradeController(Game.getObjectById(creep.room.controller));
+    return 0;
+   case -6:
+    //not enough resources
+    //head towards eating if this repeats
+    if (creep.eat(creep.memory.home) == -9) {
+     creep.moveTo(Game.getObjectById(creep.memory.home), {
+      visualizePathStyle: {
+       fill: '#ffcc66',
+       stroke: '#ffcc66',
+       lineStyle: 'dashed',
+       strokeWidth: .15,
+       opacity: .1
+      }
+     });
+    }
+    return -6;
+   case -7:
+    //invalid target
+    creep.say('Bad Target', false);
+    //assign new target
+    creep.memory.harvest = creep.assignTask('harvest');
+    //head towards eating if this repeats
+    if (creep.eat(creep.memory.home) == -9) {
+     creep.moveTo(Game.getObjectById(creep.memory.home), {
+      visualizePathStyle: {
+       fill: '#ffcc66',
+       stroke: '#ffcc66',
+       lineStyle: 'dashed',
+       strokeWidth: .15,
+       opacity: .1
+      }
+     });
+    }
+    return -7;
+   case -9:
+    //set move
+    creep.moveTo(Game.getObjectById(creep.memory.harvest), {
+     visualizePathStyle: {
+      fill: '#ffcc66',
+      stroke: '#ffcc66',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+    return -9;
+   }
+  }
+ }
+ //if creep has no energy
+ else {
+  switch (creep.harvest(Game.getObjectById(creep.memory.harvest))) {
+  case 0:
+   //creep successfuly acted
+   creep.say('BwaK', true);
+   creep.upgradeController(Game.getObjectById(creep.room.controller));
+   return 0;
+  case -6:
+   //not enough resources
+   //head towards eating if this repeats
+   if (creep.eat(creep.memory.home) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.home), {
+     visualizePathStyle: {
+      fill: '#ffcc66',
+      stroke: '#ffcc66',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   }
+   return -6;
+  case -7:
+   //invalid target
+   creep.say('Bad Target', false);
+   //assign new target
+   creep.memory.harvest = creep.assignTask('harvest');
+   //head towards eating if this repeats
+   if (creep.eat(creep.memory.home) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.home), {
+     visualizePathStyle: {
+      fill: '#ffcc66',
+      stroke: '#ffcc66',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   }
+   return -7;
+  case -9:
+   //set move
+   creep.moveTo(Game.getObjectById(creep.memory.harvest), {
+    visualizePathStyle: {
+     fill: '#ffcc66',
+     stroke: '#ffcc66',
+     lineStyle: 'dashed',
+     strokeWidth: .15,
+     opacity: .1
+    }
+   });
+   return -9;
+  }
  }
 }
 
@@ -629,22 +984,12 @@ function tower(structure) {
  }
 }
 
-function eraseDead() {
- for (var i in Memory.creeps) {
-  if (!Game.creeps[i]) {
-   delete Memory.creeps[i];
-  }
- }
-
-}
 //first clear memory
-//erase dead creep
-eraseDead();
 //export my loop logic
 module.exports.loop = function () {
  //trigger reports for construction sites
- for (let id in Game.ConstructionSites) {
-  this.room.memory.jobs.build.tasks[id] = id;
+ for (let id in Game.constructionSites) {
+  Game.getObjectById(id).room.memory.jobs.build.tasks[id] = id;
  }
  //then trigger structure prototypes to populate energy delivery arrays
  for (let id in Game.structures) {
@@ -673,7 +1018,11 @@ module.exports.loop = function () {
  }
  //then trigger creep behavior
  for (let name in Game.creeps) {
+  if (!Game.creeps[name]) {
+   delete Memory.creeps[name];
+  }
   var creep = Game.creeps[name];
+  creep.memory.room = creep.room.name;
   switch (creep.memory.role) {
   case 'redspawn':
    redspawn(creep);
