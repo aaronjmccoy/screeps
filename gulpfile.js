@@ -5,7 +5,7 @@ var uglify = require('gulp-uglifyjs');
 var rename = require('gulp-rename');
 var screeps = require('gulp-screeps');
 const babel = require('gulp-babel');
-var credentials = require('./credentials');
+var credentials = require('./credentials.js');
 // Lint Task
 gulp.task('lint', function() {
     return gulp.src('lib/**/*.js')

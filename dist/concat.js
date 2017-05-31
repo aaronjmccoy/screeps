@@ -1,111 +1,3 @@
-function findSources(r) {
-    return r.find(FIND_SOURCES);
-}
-
-function assignSpot(creep) {
- for (let source in Memory.rooms[creep.room.name].sources) {
-  if (Memory.rooms[creep.room.name].lastAssignedSource == source) {
-   continue;
-  }
-  for (let spot in Memory.rooms[creep.room.name].sources[source].spots) {
-   if (!Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot])) {
-    Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
-    Memory.rooms[creep.room.name].lastAssignedSource = source;
-    return source;
-   } else if (creep.memory.priority > Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).memory.priority) {
-    Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).suicide();
-    Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
-    Memory.rooms[creep.room.name].lastAssignedSource = source;
-    return source;
-   }
-  }
- }
- return creep.pos.findClosestByRange(FIND_SOURCES).id;
-}
-
-//assign task takes string for creep action and assigns creep to corresponding task if any present in room.job[job].tasks
-Creep.prototype.assignTask = function (job) {
- //you know you can get objects by simulated index by getting the keys
- var tasksKeys = Object.keys(this.room.memory.jobs[job].tasks);
- if (!this.room.memory.jobs[job].workers[this.id]) {
-  this.room.memory.jobs[job].workers[this.id] = this.id;
- }
- var workersKeys = Object.keys(this.room.memory.jobs[job].workers);
- //if there are actually tasks
- if (tasksKeys.length) {
-  console.log('we have ' + workersKeys.length + ' workers and ' + tasksKeys.length + ' ' + job + ' jobs to do');
-  //we need to run a different loop depending on the number of workers and tasks
-  if (workersKeys.length > tasksKeys.length) {
-   console.log('we have more workers than jobs');
-   // if we have less tasks than workers we can assign bunch workers to the
-   // bottommost task
-   for (var w = 0; w < workersKeys.length; w++) {
-    //only if the creep id is the one we want
-    console.log(this.id + ' being assigned at index ' + w + ' for worker value ' + this.room.memory.jobs[job].workers[workersKeys[w]]);
-    if (this.id == this.room.memory.jobs[job].workers[workersKeys[w]]) {
-     //console.log(this.id + ' being assigned');
-     //if the creep index accesses a job
-     if (tasksKeys[w]) {
-      //assign job at index i
-      console.log('creep with id ' + this.id + ' being assigned to a ' + tasksKeys[w] + ' at index ' + w);
-      this.room.memory.jobs[job].assignment[this.id] = tasksKeys[w];
-      return this.room.memory.jobs[job].assignment[this.id];
-     } else {
-      //assign job at index tasks.length-1
-      console.log('creep with id ' + this.id + ' being assigned to b ' + tasksKeys[tasksKeys.length - 1] + ' at index ' + w);
-      this.room.memory.jobs[job].assignment[this.id] = tasksKeys[tasksKeys.length - 1];
-      return this.room.memory.jobs[job].assignment[this.id];
-     }
-    }
-   }
-  } else {
-   console.log('we have more jobs than workers');
-   //if we have more or equal workers to tasks we simply assign them in order
-   for (var i = 0; i < workersKeys.length; i++) {
-    //only if the creep id is the one we want
-    if (this.id == this.room.memory.jobs[job].workers[workersKeys[i]]) {
-     //assign and return task id
-     this.room.memory.jobs[job].assignment[this.id] = this.room.memory.jobs[job].tasks[tasksKeys[i]];
-     console.log('creep with id ' + this.id + ' being assigned to ' + tasksKeys[i] + ' at index ' + i);
-     return this.room.memory.jobs[job].assignment[workersKeys[i]];
-    }
-   }
-  }
- } else {
-  //if there are no jobs return null
-  return null;
- }
-};
-
-function spawnCreep(spawn, creepRecipe, rcl) {
- switch (spawn.createCreep(creepRecipe.parts[rcl], Game.time, creepRecipe.options)) {
- case -1:
-  //don't own the creep
-  console.log('You do not own the spawn being told to create a creep');
-  break;
- case -3:
-  //creep name already taken
-  console.log('There is already a creep with this name');
-  break;
- case -4:
-  //creep is being spawned
-  console.log('Spawn is already spawning  creep');
-  break;
- case -6:
-  //no more energy to spend
-  console.log('Not enough energy to spawn creep');
-  break;
- case -10:
-  //invalid body
-  console.log('Body part array not properly formed: ');
-  console.log(JSON.stringify(creepRecipe.parts[rcl]));
-  break;
- case -14:
-  //rcl dropped
-  console.log('RCL no longer sufficient to use this spawn');
- }
-}
-
 ConstructionSite.prototype.debrief = function () {
  //add to gather object
  delete this.room.memory.jobs.build.tasks[this.id];
@@ -114,13 +6,12 @@ ConstructionSite.prototype.debrief = function () {
 
 StructureContainer.prototype.report = function () {
  if (this.store.energy > 0) {
-  //add to gather object
-  this.room.memory.jobs.withdraw.tasks[this.id] = this.energy;
+  this.room.memory.jobs.withdraw.tasks[this.id] = this.id;
  }
 };
 StructureContainer.prototype.debrief = function () {
  if (this.store.energy === 0) {
-  delete this.room.memory.withdraw.tasks[this.id];
+  delete this.room.memory.jobs.withdraw.tasks[this.id];
  }
 };
 
@@ -129,13 +20,24 @@ StructureController.prototype.debrief = function () {
 };
 
 //eat action
-Creep.prototype.eat = function (home) {
- return home.renewCreep(this);
+Creep.prototype.eat = function () {
+ return Game.getObjectById(this.memory.eat).renewCreep(this);
 };
 //sacrifice action
-Creep.prototype.sacrifice = function (home) {
- return home.recycleCreep(this);
+Creep.prototype.sacrifice = function () {
+ return Game.getObjectById(this.memory.eat).recycleCreep(this);
 };
+Creep.prototype.clearJob = function (job){
+  if(Game.getObjectById(this.memory[job])){
+      Game.getObjectById(this.memory[job]).debrief();
+  }else{
+    delete this.room.memory.jobs[job].tasks[this.memory[job]];
+  }
+  delete this.room.memory.jobs[job].assignments[this.memory[job]];
+};
+Creep.prototype.clearCreep = function (){
+
+}
 
 StructureExtension.prototype.report = function () {
  if (this.energy < this.energyCapacity) {
@@ -164,7 +66,7 @@ OwnedStructure.prototype.discharge = function () {
 
 Resource.prototype.report = function () {
  //add to sweep array
- this.room.memory.jobs.pickup.tasks[this.id] = this.amount;
+ this.room.memory.jobs.pickup.tasks[this.id] = this.id;
 };
 
 Room.prototype.roleCount = function (roleString) {
@@ -223,7 +125,7 @@ Room.prototype.miningSpots = function (sources) {
 StructureSpawn.prototype.report = function () {
  if (this.energy < this.energyCapacity) {
   //add to deposit array
-  this.room.memory.jobs.transfer.tasks[this.id] = this.energy;
+  this.room.memory.jobs.transfer.tasks[this.id] = this.id;
  }
 };
 
@@ -312,31 +214,39 @@ function frog(creep) {
   case 0:
    //creep successfuly acted
    creep.say('riBBit', true);
-   Game.getObjectById(creep.memory.build).debrief();
+   if(!Game.getObjectById(creep.memory.build)){
+     creep.clearJob('build');
+   }
    return 0;
   case -7:
    //invalid target
-   creep.say('Bad Target', false);
-   //remove old target from memory
-   Game.getObjectById(creep.memory.build).debrief();
-   //assign new target
-   creep.memory.build = creep.assignTask('build');
-   //head towards upgrader if this repeats
-   if (creep.upgradeController(Game.getObjectById(creep.room.controller)) == -9) {
-    creep.moveTo(Game.getObjectById(creep.room.controller), {
-     visualizePathStyle: {
-      fill: '#ccff66',
-      stroke: '#ccff66',
-      lineStyle: 'dashed',
-      strokeWidth: .15,
-      opacity: .1
+   //creep.say('Bad Target', false);
+   //remove old target from room memory and creep memory
+     creep.clearJob('build');
+     if(creep.memory.build !== null){
+       creep.memory.build = creep.assignTask('build');
      }
-    });
-   }
+     if(creep.memory.upgradeController !== null){
+       creep.memory.upgradeController = creep.assignTask('upgradeController');
+     }
+     if (creep.upgradeController(Game.getObjectById(creep.memory.upgradeController)) == -9) {
+      creep.moveTo(Game.getObjectById(creep.memory.upgradeController), {
+       visualizePathStyle: {
+        fill: '#ccff66',
+        stroke: '#ccff66',
+        lineStyle: 'dashed',
+        strokeWidth: .15,
+        opacity: .1
+       }
+      });
+     }
+   //assign new target
+   //head towards upgrader if this repeats
+   //console.log(creep.upgradeController(Game.getObjectById(creep.memory.upgradeController)));
    return -7;
   case -9:
    //set move
-   creep.moveTo(Game.getObjectById(creep.memory.withdraw), {
+   creep.moveTo(Game.getObjectById(creep.memory.build), {
     visualizePathStyle: {
      fill: '#ccff66',
      stroke: '#ccff66',
@@ -346,6 +256,32 @@ function frog(creep) {
     }
    });
    return -9;
+   case -10:
+   //invalid target
+   //creep.say('Bad Target', false);
+   //remove old target from room memory and creep memory
+     creep.clearJob('build');
+     if(creep.memory.build !== null){
+       creep.memory.build = creep.assignTask('build');
+     }
+     if(creep.memory.upgradeController !== null){
+       creep.memory.upgradeController = creep.assignTask('upgradeController');
+     }
+     if (creep.upgradeController(Game.getObjectById(creep.memory.upgradeController)) == -9) {
+      creep.moveTo(Game.getObjectById(creep.memory.upgradeController), {
+       visualizePathStyle: {
+        fill: '#ccff66',
+        stroke: '#ccff66',
+        lineStyle: 'dashed',
+        strokeWidth: .15,
+        opacity: .1
+       }
+      });
+     }
+   //assign new target
+   //head towards upgrader if this repeats
+   //console.log(creep.upgradeController(Game.getObjectById(creep.memory.upgradeController)));
+    return -10;
   }
  }
  //if creep has no energy
@@ -354,16 +290,33 @@ function frog(creep) {
   case 0:
    //creep successfuly acted
    creep.say('RibbiT', true);
+   Game.getObjectById(creep.memory.withdraw).debrief()
    return 0;
   case -6:
-   //not enough resources
-   //remove withdraw target from memory
-   Game.getObjectById(creep.memory.withdraw).debrief();
-   //assign new withdraw target
-   creep.memory.withdraw = creep.assignTask('withdraw');
-   //head towards mining if this repeats
-   if (creep.harvest(creep.memory.harvest) == -9) {
-    creep.moveTo(Game.getObjectById(creep.memory.harvest), {
+  //invalid target
+  //remove withdraw target from memory
+  if(Game.getObjectById(creep.memory.withdraw)){
+    creep.clearJob('withdraw');
+    //assign new withdraw target
+    creep.memory.withdraw = creep.assignTask('withdraw');
+  }
+  //head towards mining if this repeats
+  if (creep.harvest(Game.getObjectById(creep.memory.harvest)) == -9) {
+   creep.moveTo(Game.getObjectById(creep.memory.harvest), {
+    visualizePathStyle: {
+     fill: '#ccff66',
+     stroke: '#ccff66',
+     lineStyle: 'dashed',
+     strokeWidth: .15,
+     opacity: .1
+    }
+   });
+  } else if (creep.harvest(creep.memory.harvest) == -6) {
+   //if sources are out of energy harvest
+   creep.memory.eat = creep.assignTask('eat');
+   if (creep.eat(creep.memory.eat) == -9) {
+    //bad target followed by empty sources = eat while you can
+    creep.moveTo(Game.getObjectById(creep.memory.eat), {
      visualizePathStyle: {
       fill: '#ccff66',
       stroke: '#ccff66',
@@ -373,14 +326,16 @@ function frog(creep) {
      }
     });
    }
+  }
    return -6;
   case -7:
    //invalid target
-   creep.say('Bad Target', false);
-   //remove old target from memory
-   Game.getObjectById(creep.memory.withdraw).debrief();
-   //assign new target
-   creep.memory.withdraw = creep.assignTask('withdraw');
+   //remove withdraw target from memory
+   if(Game.getObjectById(creep.memory.withdraw)){
+     creep.clearJob('withdraw');
+     //assign new withdraw target
+     creep.memory.withdraw = creep.assignTask('withdraw');
+   }
    //head towards mining if this repeats
    if (creep.harvest(Game.getObjectById(creep.memory.harvest)) == -9) {
     creep.moveTo(Game.getObjectById(creep.memory.harvest), {
@@ -394,9 +349,10 @@ function frog(creep) {
     });
    } else if (creep.harvest(creep.memory.harvest) == -6) {
     //if sources are out of energy harvest
-    if (creep.eat(creep.memory.home) == -9) {
+    creep.memory.eat = creep.assignTask('eat');
+    if (creep.eat(creep.memory.eat) == -9) {
      //bad target followed by empty sources = eat while you can
-     creep.moveTo(Game.getObjectById(creep.memory.home), {
+     creep.moveTo(Game.getObjectById(creep.memory.eat), {
       visualizePathStyle: {
        fill: '#ccff66',
        stroke: '#ccff66',
@@ -420,36 +376,45 @@ function frog(creep) {
     }
    });
    return -9;
+   case -10:
+   //invalid target
+   //remove withdraw target from memory
+   if(Game.getObjectById(creep.memory.withdraw)){
+     creep.clearJob('withdraw');
+     //assign new withdraw target
+     creep.memory.withdraw = creep.assignTask('withdraw');
+   }
+   //head towards mining if this repeats
+   if (creep.harvest(Game.getObjectById(creep.memory.harvest)) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.harvest), {
+     visualizePathStyle: {
+      fill: '#ccff66',
+      stroke: '#ccff66',
+      lineStyle: 'dashed',
+      strokeWidth: .15,
+      opacity: .1
+     }
+    });
+   } else if (creep.harvest(creep.memory.harvest) == -6) {
+    //if sources are out of energy harvest
+    creep.memory.eat = creep.assignTask('eat');
+    if (creep.eat(creep.memory.eat) == -9) {
+     //bad target followed by empty sources = eat while you can
+     creep.moveTo(Game.getObjectById(creep.memory.eat), {
+      visualizePathStyle: {
+       fill: '#ccff66',
+       stroke: '#ccff66',
+       lineStyle: 'dashed',
+       strokeWidth: .15,
+       opacity: .1
+      }
+     });
+    }
+   }
+    return -10;
   }
  }
 }
-Memory.recipes.frog = {
- parts: {
-  //rcl1 300 energy
-  1: [MOVE, CARRY, MOVE, WORK],
-  //rcl2 300 - 550
-  2: [MOVE, CARRY, MOVE, WORK],
-  //rcl3 550 - 800
-  3: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
-  //rcl 4 800 - 1300
-  4: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
-  //rcl 5 1300 - 1800
-  5: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
-  //rcl 6 1800 - 2300
-  6: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
-  //rcl 7 2300 - 5600
-  7: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
-  //rcl 8 5600 - 12900
-  8: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK]
-
- },
- options: {
-  //add role for creep function call
-  role: 'frog',
-  //limit resource type to avoid chemical poisoning
-  resourceType: RESOURCE_ENERGY
- }
-};
 
 function newt(creep) {
  //state flipper
@@ -473,9 +438,11 @@ function newt(creep) {
    //invalid target
    creep.say('Bad Target', false);
    creep.memory.transfer = creep.assignTask('transfer');
+   creep.memory.eat = creep.assignTask('eat');
    //head towards eating if this repeats
-   if (creep.eat(Game.getObjectById(creep.memory.home)) == -9) {
-    creep.moveTo(Game.getObjectById(creep.memory.home), {
+   if (creep.eat(Game.getObjectById(creep.memory.eat)) < 0) {
+     creep.say(creep.eat(Game.getObjectById(creep.memory.eat)));
+    creep.moveTo(Game.getObjectById(creep.memory.eat), {
      visualizePathStyle: {
       fill: '#ffcc00',
       stroke: '#ffcc00',
@@ -488,11 +455,12 @@ function newt(creep) {
    return -7;
   case -8:
    //full target
-   creep.say('Full', false);
+   //console.log(creep.eat(Game.getObjectById(creep.memory.eat)));
    creep.memory.transfer = creep.assignTask('transfer');
+   creep.memory.eat = creep.assignTask('eat');
    //head towards eating if this repeats
-   if (creep.eat(Game.getObjectById(creep.memory.home)) == -9) {
-    creep.moveTo(Game.getObjectById(creep.memory.home), {
+   if (creep.eat(Game.getObjectById(creep.memory.eat)) < 0) {
+    creep.moveTo(Game.getObjectById(creep.memory.eat), {
      visualizePathStyle: {
       fill: '#ffcc00',
       stroke: '#ffcc00',
@@ -502,7 +470,7 @@ function newt(creep) {
      }
     });
    }
-   return -9;
+   return -8;
   case -9:
    //move in
    creep.moveTo(Game.getObjectById(creep.memory.transfer), {
@@ -527,9 +495,10 @@ function newt(creep) {
    return 0;
   case -6:
    //empty target
-   creep.say('Not Enough', false);
+   //creep.say('Not Enough', false);
    creep.memory.withdraw = creep.assignTask('withdraw');
    //head towards eating if this repeats
+   creep.memory.pickup = creep.assignTask('pickup');
    if (creep.pickup(Game.getObjectById(creep.memory.pickup)) == -9) {
     creep.moveTo(Game.getObjectById(creep.memory.pickup), {
      visualizePathStyle: {
@@ -541,11 +510,13 @@ function newt(creep) {
      }
     });
    }
+   delete creep.room.memory.jobs.pickup.tasks[creep.memory.pickup];
    return -6;
   case -7:
    //invalid target
-   creep.say('Bad Target', false);
+   //creep.say('Bad Target', false);
    creep.memory.withdraw = creep.assignTask('withdraw');
+   creep.memory.pickup = creep.assignTask('pickup');
    //head towards eating if this repeats
    if (creep.pickup(Game.getObjectById(creep.memory.pickup)) == -9) {
     creep.moveTo(Game.getObjectById(creep.memory.pickup), {
@@ -558,6 +529,7 @@ function newt(creep) {
      }
     });
    }
+   delete creep.room.memory.jobs.pickup.tasks[creep.id];
    return -7;
   case -9:
    //move in
@@ -575,40 +547,10 @@ function newt(creep) {
  }
 }
 
-Memory.recipes.newt = {
- parts: {
-  //rcl1 300 energy
-  1: [MOVE, CARRY, MOVE, CARRY],
-  //rcl2 300 - 550
-  2: [MOVE, CARRY, MOVE, CARRY],
-  //rcl3 550 - 800
-  3: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
-  //rcl 4 800 - 1300
-  4: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
-  //rcl 5 1300 - 1800
-  5: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
-  //rcl 6 1800 - 2300
-  6: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
-  //rcl 7 2300 - 5600
-  7: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
-  //rcl 8 5600 - 12900
-  8: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY]
-
- },
- options: {
-  //add role for creep function call
-  role: 'newt',
-  //limit resource type to avoid chemical poisoning
-  resourceType: RESOURCE_ENERGY,
- }
-};
-
 //we currently have no interest in taking rooms we can't build spawns in, so
 //initialize room goes here with our first building in any room
 function initialize(r) {
- if (!Memory.recipes) {
-  Memory.recipes = {};
- }
+
  //initialize room if not already initialized
  Memory.rooms[r.name] = {};
  if (!Memory.rooms[r.name].sc) {
@@ -681,6 +623,14 @@ function initialize(r) {
 
 function queen(spawn) {
  const r = spawn.room;
+ const containers = r.find(FIND_STRUCTURES, {filter: (s) => s.structureType == 'container'});
+ for(let container in containers){
+   containers[container].report();
+ }
+ const dust = r.find(FIND_DROPPED_RESOURCES);
+ for(let d in dust){
+   dust[d].report();
+ }
  if (!Memory.rooms[r.name]) {
   initialize(r);
   Memory.rooms[r.name].jobs.transfer.tasks[spawn.id] = spawn.id;
@@ -700,12 +650,13 @@ function queen(spawn) {
  //so we have a variable count for toads since it takes a while for max mining on a single toad
  if (r.roleCount('toad') < r.memory.sc) {
   spawnCreep(spawn, toad, rcl);
- } else if ((r.roleCount('newt') < withdrawCap) || (r.roleCount('newt') < pickupCap)) {
+ } else if (r.roleCount('newt') < withdrawCap) {
   //we make newts based on the amount of gather tasks we have
-  spawnCreep(spawn, newt);
+  console.log(withdrawCap+":"+pickupCap);
+  spawnCreep(spawn, newt, rcl);
  } else if (r.roleCount('frog') < frogCap) {
   //we make frogs based on the amount of build tasks we have
-  spawnCreep(spawn, frog);
+  spawnCreep(spawn, frog, rcl);
  }
 
 
@@ -731,13 +682,14 @@ function toad(creep) {
    return 0;
   case -7:
    //invalid target
-   creep.say('Bad Target', false);
-   //remove old target from memory
-   if (Game.getObjectById(creep.memory.build)) {
-    Game.getObjectById(creep.memory.build).debrief();
+   creep.clearJob('build');
+   if(creep.memory.build !== null){
+     creep.memory.build = creep.assignTask('build');
    }
-   //assign new target
-   creep.memory.build = creep.assignTask('build');
+   if(creep.memory.upgradeController !== null){
+     creep.memory.upgradeController = creep.assignTask('upgradeController');
+   }
+   //toad should harvest
    switch (creep.harvest(Game.getObjectById(creep.memory.harvest))) {
    case 0:
     //creep successfuly acted
@@ -747,8 +699,9 @@ function toad(creep) {
    case -6:
     //not enough resources
     //head towards eating if this repeats
-    if (creep.eat(creep.memory.home) == -9) {
-     creep.moveTo(Game.getObjectById(creep.memory.home), {
+    creep.memory.eat = creep.assignTask('eat');
+    if (creep.eat(creep.memory.eat) == -9) {
+     creep.moveTo(Game.getObjectById(creep.memory.eat), {
       visualizePathStyle: {
        fill: '#ffcc66',
        stroke: '#ffcc66',
@@ -765,8 +718,9 @@ function toad(creep) {
     //assign new target
     creep.memory.harvest = creep.assignTask('harvest');
     //head towards eating if this repeats
-    if (creep.eat(creep.memory.home) == -9) {
-     creep.moveTo(Game.getObjectById(creep.memory.home), {
+    creep.memory.eat = creep.assignTask('eat');
+    if (creep.eat(creep.memory.eat) == -9) {
+     creep.moveTo(Game.getObjectById(creep.memory.eat), {
       visualizePathStyle: {
        fill: '#ffcc66',
        stroke: '#ffcc66',
@@ -793,7 +747,9 @@ function toad(creep) {
    return -7;
   case -9:
    //assign new target
-   creep.memory.build = creep.assignTask('build');
+   if(creep.memory.build !== null){
+     creep.memory.build = creep.assignTask('build');
+   }
    switch (creep.harvest(Game.getObjectById(creep.memory.harvest))) {
    case 0:
     //creep successfuly acted
@@ -803,8 +759,9 @@ function toad(creep) {
    case -6:
     //not enough resources
     //head towards eating if this repeats
-    if (creep.eat(creep.memory.home) == -9) {
-     creep.moveTo(Game.getObjectById(creep.memory.home), {
+    creep.memory.eat = creep.assignTask('eat');
+    if (creep.eat(creep.memory.eat) == -9) {
+     creep.moveTo(Game.getObjectById(creep.memory.eat), {
       visualizePathStyle: {
        fill: '#ffcc66',
        stroke: '#ffcc66',
@@ -821,8 +778,9 @@ function toad(creep) {
     //assign new target
     creep.memory.harvest = creep.assignTask('harvest');
     //head towards eating if this repeats
-    if (creep.eat(creep.memory.home) == -9) {
-     creep.moveTo(Game.getObjectById(creep.memory.home), {
+    creep.memory.eat = creep.assignTask('eat');
+    if (creep.eat(creep.memory.eat) == -9) {
+     creep.moveTo(Game.getObjectById(creep.memory.eat), {
       visualizePathStyle: {
        fill: '#ffcc66',
        stroke: '#ffcc66',
@@ -859,8 +817,9 @@ function toad(creep) {
   case -6:
    //not enough resources
    //head towards eating if this repeats
-   if (creep.eat(creep.memory.home) == -9) {
-    creep.moveTo(Game.getObjectById(creep.memory.home), {
+   creep.memory.eat = creep.assignTask('eat');
+   if (creep.eat(creep.memory.eat) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.eat), {
      visualizePathStyle: {
       fill: '#ffcc66',
       stroke: '#ffcc66',
@@ -877,8 +836,9 @@ function toad(creep) {
    //assign new target
    creep.memory.harvest = creep.assignTask('harvest');
    //head towards eating if this repeats
-   if (creep.eat(creep.memory.home) == -9) {
-    creep.moveTo(Game.getObjectById(creep.memory.home), {
+   creep.memory.eat = creep.assignTask('eat');
+   if (creep.eat(creep.memory.eat) == -9) {
+    creep.moveTo(Game.getObjectById(creep.memory.eat), {
      visualizePathStyle: {
       fill: '#ffcc66',
       stroke: '#ffcc66',
@@ -904,34 +864,6 @@ function toad(creep) {
   }
  }
 }
-
-Memory.recipes.toad = {
- parts: {
-  //rcl1 300 energy
-  1: [MOVE, WORK, CARRY, WORK],
-  //rcl2 300 - 550
-  2: [MOVE, WORK, CARRY, WORK],
-  //rcl3 550 - 800
-  3: [MOVE, WORK, WORK, MOVE, WORK, WORK, CARRY],
-  //rcl 4 800 - 1300
-  4: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, CARRY],
-  //rcl 5 1300 - 1800
-  5: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, CARRY],
-  //rcl 6 1800 - 2300
-  6: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, CARRY],
-  //rcl 7 2300 - 5600
-  7: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, CARRY],
-  //rcl 8 5600 - 12900
-  8: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, CARRY]
-
- },
- options: {
-  //add role for creep function call
-  role: 'toad',
-  //limit resource type to avoid chemical poisoning
-  resourceType: RESOURCE_ENERGY,
- }
-};
 
 function tower(structure) {
  var nearenemies = structure.pos.findInRange(FIND_HOSTILE_CREEPS, 15);
@@ -984,13 +916,194 @@ function tower(structure) {
  }
 }
 
+function assignSpot(creep) {
+ for (let source in Memory.rooms[creep.room.name].sources) {
+  if (Memory.rooms[creep.room.name].lastAssignedSource == source) {
+   continue;
+  }
+  for (let spot in Memory.rooms[creep.room.name].sources[source].spots) {
+   if (!Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot])) {
+    Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
+    Memory.rooms[creep.room.name].lastAssignedSource = source;
+    return source;
+   } else if (creep.memory.priority > Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).memory.priority) {
+    Game.getObjectById(Memory.rooms[creep.room.name].sources[source].spots[spot]).suicide();
+    Memory.rooms[creep.room.name].sources[source].spots[spot] = creep.id;
+    Memory.rooms[creep.room.name].lastAssignedSource = source;
+    return source;
+   }
+  }
+ }
+ return creep.pos.findClosestByRange(FIND_SOURCES).id;
+}
+
+//assign task takes string for creep action and assigns creep to corresponding task if any present in room.job[job].tasks
+Creep.prototype.assignTask = function (job) {
+ //you know you can get objects by simulated index by getting the keys
+ var tasksKeys = Object.keys(this.room.memory.jobs[job].tasks);
+ if (!this.room.memory.jobs[job].workers[this.id]) {
+  this.room.memory.jobs[job].workers[this.id] = this.id;
+ }
+ var workersKeys = Object.keys(this.room.memory.jobs[job].workers);
+ //if there are actually tasks
+ if (tasksKeys.length) {
+  //console.log('we have ' + workersKeys.length + ' workers and ' + tasksKeys.length + ' ' + job + ' jobs to do');
+  //we need to run a different loop depending on the number of workers and tasks
+  if (workersKeys.length > tasksKeys.length) {
+   //console.log('we have more workers than jobs');
+   // if we have less tasks than workers we can assign bunch workers to the
+   // bottommost task
+   for (var w = 0; w < workersKeys.length; w++) {
+    //only if the creep id is the one we want
+    console.log(this.id + ' being assigned at index ' + w + ' for worker value ' + this.room.memory.jobs[job].workers[workersKeys[w]]);
+
+     //console.log(this.id + ' being assigned');
+     //if the creep index accesses a job
+     if (tasksKeys[w]) {
+      //assign job at index i
+      console.log('creep with id ' + this.id + ' being assigned to '+job+' ' + tasksKeys[w] + ' at index ' + w);
+      this.room.memory.jobs[job].assignment[this.id] = tasksKeys[w];
+      return this.room.memory.jobs[job].assignment[this.id];
+     } else {
+      //assign job at parallel index
+      console.log('creep with id ' + this.id + ' being assigned to b ' + tasksKeys[tasksKeys%i] + ' at index ' + tasksKeys%i);
+      this.room.memory.jobs[job].assignment[this.id] = tasksKeys[tasksKeys.length-(tasksKeys%i)];
+      return this.room.memory.jobs[job].assignment[this.id];
+     }
+
+   }
+  } else {
+   //console.log('we have more jobs than workers');
+   //if we have more or equal workers to tasks we simply assign them in order
+   for (var i = 0; i < workersKeys.length; i++) {
+    //only if the creep id is the one we want
+    //if (this.id == this.room.memory.jobs[job].workers[workersKeys[i]]) {
+     //assign and return task id
+     this.room.memory.jobs[job].assignment[this.id] = this.room.memory.jobs[job].tasks[tasksKeys[i]];
+     //console.log('creep with id ' + this.id + ' being assigned to ' + tasksKeys[i] + ' at index ' + i);
+    //}
+   }
+   return this.room.memory.jobs[job].assignment[this.id];
+  }
+ } else {
+  //if there are no jobs return null
+  return null;
+ }
+};
+
+function spawnCreep(spawn, creepRecipe, rcl) {
+ switch (spawn.createCreep(creepRecipe.parts[rcl], Game.time, creepRecipe.options)) {
+ case -1:
+  //don't own the creep
+  console.log('You do not own the spawn being told to create a creep');
+  break;
+ case -3:
+  //creep name already taken
+  console.log('There is already a creep with this name');
+  break;
+ case -10:
+  //invalid body
+  console.log('Body part array not properly formed: ');
+  console.log(JSON.stringify(creepRecipe.parts[rcl]));
+  break;
+ case -14:
+  //rcl dropped
+  console.log('RCL no longer sufficient to use this spawn');
+ }
+}
+
 //first clear memory
+if (!Memory.recipes) {
+ Memory.recipes = {};
+}
+Memory.recipes.frog = {
+ parts: {
+  //rcl1 300 energy
+  1: [MOVE, CARRY, MOVE, WORK],
+  //rcl2 300 - 550
+  2: [MOVE, CARRY, MOVE, WORK],
+  //rcl3 550 - 800
+  3: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
+  //rcl 4 800 - 1300
+  4: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
+  //rcl 5 1300 - 1800
+  5: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
+  //rcl 6 1800 - 2300
+  6: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
+  //rcl 7 2300 - 5600
+  7: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK],
+  //rcl 8 5600 - 12900
+  8: [MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK, MOVE, CARRY, MOVE, WORK]
+
+ },
+ options: {
+  //add role for creep function call
+  role: 'frog',
+  //limit resource type to avoid chemical poisoning
+  resourceType: RESOURCE_ENERGY
+ }
+};
+Memory.recipes.newt = {
+ parts: {
+  //rcl1 300 energy
+  1: [MOVE, CARRY, MOVE, CARRY],
+  //rcl2 300 - 550
+  2: [MOVE, CARRY, MOVE, CARRY],
+  //rcl3 550 - 800
+  3: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
+  //rcl 4 800 - 1300
+  4: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
+  //rcl 5 1300 - 1800
+  5: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
+  //rcl 6 1800 - 2300
+  6: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
+  //rcl 7 2300 - 5600
+  7: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY],
+  //rcl 8 5600 - 12900
+  8: [MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, MOVE, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY]
+
+ },
+ options: {
+  //add role for creep function call
+  role: 'newt',
+  //limit resource type to avoid chemical poisoning
+  resourceType: RESOURCE_ENERGY,
+ }
+};
+Memory.recipes.toad = {
+ parts: {
+  //rcl1 300 energy
+  1: [MOVE, WORK, CARRY, WORK],
+  //rcl2 300 - 550
+  2: [MOVE, WORK, CARRY, WORK],
+  //rcl3 550 - 800
+  3: [MOVE, WORK, WORK, MOVE, WORK, WORK, CARRY],
+  //rcl 4 800 - 1300
+  4: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, CARRY],
+  //rcl 5 1300 - 1800
+  5: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, CARRY],
+  //rcl 6 1800 - 2300
+  6: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, CARRY],
+  //rcl 7 2300 - 5600
+  7: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, CARRY],
+  //rcl 8 5600 - 12900
+  8: [MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, WORK, WORK, MOVE, CARRY]
+
+ },
+ options: {
+  //add role for creep function call
+  role: 'toad',
+  //limit resource type to avoid chemical poisoning
+  resourceType: RESOURCE_ENERGY,
+ }
+};
 //export my loop logic
 module.exports.loop = function () {
  //trigger reports for construction sites
  for (let id in Game.constructionSites) {
   Game.getObjectById(id).room.memory.jobs.build.tasks[id] = id;
  }
+
  //then trigger structure prototypes to populate energy delivery arrays
  for (let id in Game.structures) {
   var structure = Game.structures[id];
@@ -1002,9 +1115,6 @@ module.exports.loop = function () {
    structure.report();
    break;
   case 'extension':
-   structure.report();
-   break;
-  case 'container':
    structure.report();
    break;
   case 'storage':
@@ -1019,6 +1129,22 @@ module.exports.loop = function () {
  //then trigger creep behavior
  for (let name in Game.creeps) {
   if (!Game.creeps[name]) {
+    //clear creep work registration
+   delete creep.room.memory.jobs.pickup.workers[creep.id];
+   delete creep.room.memory.jobs.withdraw.workers[creep.id];
+   delete creep.room.memory.jobs.transfer.workers[creep.id];
+   delete creep.room.memory.jobs.build.workers[creep.id];
+   delete creep.room.memory.jobs.upgradeController.workers[creep.id];
+   delete creep.room.memory.jobs.eat.workers[creep.id];
+   delete creep.room.memory.jobs.harvest.workers[creep.id];
+   //clear creep assignment data
+   delete creep.room.memory.jobs.pickup.assignment[creep.id];
+   delete creep.room.memory.jobs.withdraw.assignment[creep.id];
+   delete creep.room.memory.jobs.transfer.assignment[creep.id];
+   delete creep.room.memory.jobs.build.assignment[creep.id];
+   delete creep.room.memory.jobs.upgradeController.assignment[creep.id];
+   delete creep.room.memory.jobs.eat.assignment[creep.id];
+   delete creep.room.memory.jobs.harvest.assignment[creep.id];
    delete Memory.creeps[name];
   }
   var creep = Game.creeps[name];
