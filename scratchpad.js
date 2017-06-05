@@ -10,6 +10,46 @@ room.memory {
     }
 }
 
+//// TASK ////
+
+//set a task
+function Structure.createTask(job) {
+    room.memory.jobs[job].tasks.add(this.id);
+}
+//delete a task
+function Structure.deleteTask(job) {
+    room.memory.jobs[job].tasks.delete(this.id);
+}
+//check if a structure is in our task set
+function Structure.isTask(job) {
+    room.memory.jobs[job].tasks.has(this.id);
+}
+//get a particular task by converting the set to an array with the spread operator
+function getTaskAt(index, job) {
+    return [...room.memory.jobs[job].tasks][index];
+}
+//get a tasks' index
+function Structure.getTaskIndex(job) {
+    return [...room.memory.jobs[job].tasks].indexOf(this.id);
+}
+//return the task set in array form
+function getTasksArray(job) {
+    return [...room.memory.jobs[job].tasks];
+}
+
+//get a particular task by converting the set to an array with the spread operator
+function getTaskAt(index, job) {
+    return [...room.memory.jobs[job].tasks][index];
+}
+//get a tasks' index
+function Structure.getTaskIndex(job) {
+    return [...room.memory.jobs[job].tasks].indexOf(this.id);
+}
+//return the task set in array form
+function getTasksArray(job) {
+    return [...room.memory.jobs[job].tasks];
+}
+
 //// ASSIGNMENT ////
 
 //set an assignment
