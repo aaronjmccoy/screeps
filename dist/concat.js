@@ -6,19 +6,19 @@ Object.defineProperty(Array.prototype, 'add', {
    //console.log('set as array before splice');
    //console.log(this);
    //console.log([...set]);
-   console.log('set size: ' + set.size);
-   console.log('does set have ' + element + ': ' + set.has(element));
+   //console.log('set size: ' + set.size);
+   //console.log('does set have ' + element + ': ' + set.has(element));
    if (!set.has(element)) {
     set = set.add(element);
    }
-   console.log('set size after adding ' + element + ': ' + set.size);
+   //console.log('set size after adding ' + element + ': ' + set.size);
    set.forEach(function (value1, value2, set) {
     //console.log('s[' + value1 + '] = ' + value2);
    });
    this.splice(0, this.length, ...set);
-   console.log('after splice');
-   console.log(...set);
-   console.log(this);
+   //console.log('after splice');
+   //console.log(...set);
+   //console.log(this);
   } else {
    this.push(element);
   }
@@ -54,31 +54,31 @@ ConstructionSite.prototype.report = function () {
 };
 //this gets called every time a creep uses build since the construction sites add themselves every tick
 ConstructionSite.prototype.debrief = function (job) {
- this.deleteTask('construct');
+ return true;
 };
 
 //don't need to report because we do that in our main
 //set a task
 ConstructionSite.prototype.createTask = function (job) {
- this.room.memory.jobs[job].tasks.add(this.id);
+ this.room.memory.jobs.construct.tasks.add(this.id);
  this.room.memory.jobs.list.add(this.id);
 };
 //delete a task
 ConstructionSite.prototype.deleteTask = function (job) {
- this.room.memory.jobs[job].tasks.delete(this.id);
+ this.room.memory.jobs.construct.tasks.delete(this.id);
  this.room.memory.jobs.list.delete(this.id);
 };
 //check if a cs id is in our task set
 ConstructionSite.prototype.isTask = function (job) {
- this.room.memory.jobs[job].tasks.has(this.id);
+ this.room.memory.jobs.construct.tasks.has(this.id);
 };
 //get a particular task by converting the set to an array with the spread operator
 ConstructionSite.prototype.getTaskAt = function (index, job) {
- return [...this.room.memory.jobs[job].tasks][index];
+ return this.room.memory.jobs.construct.tasks[index];
 };
 //get a tasks' index
 ConstructionSite.prototype.getTaskIndex = function (job) {
- return [...this.room.memory.jobs[job].tasks].indexOf(this.id);
+ return this.room.memory.jobs.construct.tasks.indexOf(this.id);
 };
 
 StructureContainer.prototype.report = function () {
@@ -98,6 +98,31 @@ StructureContainer.prototype.debrief = function () {
  }
 };
 
+
+//don't need to report because we do that in our main
+//set a task
+StructureContainer.prototype.createTask = function (job) {
+ this.room.memory.jobs[job].tasks.add(this.id);
+ this.room.memory.jobs.list.add(this.id);
+};
+//delete a task
+StructureContainer.prototype.deleteTask = function (job) {
+ this.room.memory.jobs[job].tasks.delete(this.id);
+ this.room.memory.jobs.list.delete(this.id);
+};
+//check if a cs id is in our task set
+StructureContainer.prototype.isTask = function (job) {
+ this.room.memory.jobs[job].tasks.has(this.id);
+};
+//get a particular task by converting the set to an array with the spread operator
+StructureContainer.prototype.getTaskAt = function (index, job) {
+ return this.room.memory.jobs[job].tasks[index];
+};
+//get a tasks' index
+StructureContainer.prototype.getTaskIndex = function (job) {
+ return this.room.memory.jobs[job].tasks.indexOf(this.id);
+};
+
 StructureController.prototype.report = function () {
  return true;
 };
@@ -111,6 +136,7 @@ StructureExtension.prototype.debrief = function () {
 //set a worker
 Creep.prototype.setWorker = function (job) {
  this.room.memory.jobs[job].workers.add(this.name);
+ this.memory.jobs[job] = null;
 };
 //delete a worker
 Creep.prototype.deleteWorker = function (job) {
@@ -118,7 +144,7 @@ Creep.prototype.deleteWorker = function (job) {
 };
 //check if a creep is in our worker set
 Creep.prototype.isWorker = function (job) {
- this.room.memory.jobs[job].workers.has(this.name);
+ return this.room.memory.jobs[job].workers.has(this.name);
 };
 //get a particlar worker
 Creep.prototype.getWorkerAt = function (index, job) {
@@ -133,12 +159,14 @@ function getWorkersArray(job, room) {
  return room.memory.jobs[job].workers;
 }
 //delete all a creep from all worker arrays
-Creep.prototype.deleteWorkerAll = function () {
- for (var job in this.memory.jobs) {
+function deleteWorkerAll(obj, room, name) {
+ for (var job in obj.jobs) {
+   console.log(job+':');
+  console.log(JSON.stringify(Memory.rooms[room].jobs[job].workers));
   //delete the assignment entry
-  this.deleteWorker(job);
+  Memory.rooms[room].jobs[job].workers.delete(name);
  }
-};
+}
 
 //// TASK ASSIGNMENT ////
 
@@ -164,17 +192,46 @@ Creep.prototype.deleteAllAssignments = function () {
  }
 };
 
+Creep.prototype.debrief = function () {
+ if (this.carry.energy === this.carryCapacity) {
+  console.log(this + ' deleting ' + job);
+  this.deleteTask('deposit');
+ }
+ if (this.hits === this.hitsMax) {
+  this.deleteTask('fix');
+ }
+};
+//// WHEN A CREEP IS A TASK TARGET ////
+Creep.prototype.createTask = function (job) {
+ this.room.memory.jobs[job].tasks.add(this.id);
+ this.room.memory.jobs.list.add(this.id);
+};
+//delete a task
+Creep.prototype.deleteTask = function (job) {
+ this.room.memory.jobs[job].tasks.delete(this.id);
+ this.room.memory.jobs.list.delete(this.id);
+};
+//check if a structure id is in our task set
+Creep.prototype.isTask = function (job) {
+ this.room.memory.jobs[job].tasks.has(this.id);
+};
+//get a tasks' index
+Creep.prototype.getTaskIndex = function (job) {
+ return this.room.memory.jobs[job].tasks.indexOf(this.id);
+};
+
 //assign a task in the task array to a creep in the corresponding worker array
 Creep.prototype.assignTask = function (job) {
  //first be sure the creep is in the worker array
  if (!this.isWorker(job)) {
   //if not add it
-  console.log('adding' + this.name + ' to ' + job);
+  console.log('adding ' + this.name + ' to ' + job);
   this.setWorker(job);
  }
  //then get the index of the worker, wIndex
  let wIndex = this.getWorkerIndex(job);
  let aIndex = 0;
+ //console.log(job + ' a:w :: ' + aIndex + ':' + wIndex);
  //get the task at wIndex
  let task = getTaskAt(wIndex, job, this.room);
  //if there is a job in the tasks set at wIndex
@@ -182,22 +239,23 @@ Creep.prototype.assignTask = function (job) {
   this.setAssignment(job, task);
   return true;
  } else {
+  //console.log('task at bad ' + job + ' index: ' + task);
   //there is no job at that index, we need to assign this creep to a job parallel to wIndex
   let tasksLength = getTasksArray(job, this.room).length;
   let workersLength = getWorkersArray(job, this.room).length;
-  //if we have more workers to tasks
+  //if we have more workers than tasks
   if (workersLength > tasksLength) {
    aIndex = wIndex % tasksLength;
+   //console.log(job + ' a:w :: ' + aIndex + ':' + wIndex);
   } else {
-   //we have less then or equal workers to tasks
+   //we have equal to or less workers than tasks
    aIndex = wIndex;
   }
   //set assignment
   this.setAssignment(job, getTaskAt(aIndex, job, this.room));
   return true;
  }
- this.setAssignment(job, getTaskAt(aIndex, job, this.room));
- return true;
+ return false;
 };
 
 Creep.prototype.gatherAura = function () {
@@ -229,10 +287,19 @@ Creep.prototype.depositAura = function () {
  var nearExt = this.pos.findInRange(FIND_MY_STRUCTURES, 1, {
   filter: s => s.structureType == STRUCTURE_EXTENSION
  });
+ var nearSpawn = this.pos.findInRange(FIND_MY_STRUCTURES, 1, {
+  filter: s => s.structureType == STRUCTURE_SPAWN
+ });
  //console.log(nearExt);
  for (let e in nearExt) {
   //console.log(nearExt[e]);
   if (this.transfer(nearExt[e], RESOURCE_ENERGY) === 0) {
+   this.say(Memory.emoji.sogood);
+  }
+ }
+ for (let s in nearSpawn) {
+  //console.log(nearExt[e]);
+  if (this.transfer(nearSpawn[s], RESOURCE_ENERGY) === 0) {
    this.say(Memory.emoji.sogood);
   }
  }
@@ -260,7 +327,7 @@ Creep.prototype.assignSpot = function () {
 };
 
 StructureExtension.prototype.report = function () {
- if (this.store.energy > this.energyCapacity) {
+ if (this.energy < this.energyCapacity) {
   this.createTask('deposit');
  }
  if (this.hits < this.hitsMax) {
@@ -269,7 +336,7 @@ StructureExtension.prototype.report = function () {
 };
 
 StructureExtension.prototype.debrief = function () {
- if (this.store.energy === this.energyCapacity) {
+ if (this.energy === this.energyCapacity) {
   this.deleteTask('deposit');
  }
  if (this.hits === this.hitsMax) {
@@ -286,6 +353,7 @@ OwnedStructure.prototype.createTask = function (job) {
 };
 //delete a task
 OwnedStructure.prototype.deleteTask = function (job) {
+ console.log(this + ' deleting ' + job);
  this.room.memory.jobs[job].tasks.delete(this.id);
  this.room.memory.jobs.list.delete(this.id);
 };
@@ -401,7 +469,7 @@ Room.prototype.miningSpots = function (sources) {
 };
 
 StructureSpawn.prototype.report = function () {
- if (this.energy > this.energyCapacity) {
+ if (this.energy < this.energyCapacity) {
   this.createTask('deposit');
  }
  if (this.hits < this.hitsMax) {
@@ -410,7 +478,7 @@ StructureSpawn.prototype.report = function () {
 };
 
 StructureSpawn.prototype.debrief = function () {
- if (this.store.energy === this.energyCapacity) {
+ if (this.energy === this.energyCapacity) {
   this.deleteTask('deposit');
  }
  if (this.hits === this.hitsMax) {
@@ -453,7 +521,7 @@ StructureStorage.prototype.debrief = function () {
 };
 
 StructureTower.prototype.report = function () {
- if (this.store.energy > this.energyCapacity) {
+ if (this.energy < this.energyCapacity) {
   this.createTask('deposit');
  }
  if (this.hits < this.hitsMax) {
@@ -462,7 +530,7 @@ StructureTower.prototype.report = function () {
 };
 
 StructureTower.prototype.debrief = function () {
- if (this.store.energy === this.energyCapacity) {
+ if (this.energy === this.energyCapacity) {
   this.deleteTask('deposit');
  }
  if (this.hits === this.hitsMax) {
@@ -475,23 +543,29 @@ Creep.prototype.frog = function () {
  if (this.carry.energy === 0) {
   this.memory.state = 0;
  }
+ if (this.carry.energy < this.carryCapacity) {
+  this.createTask('deposit');
+ }
  //if this has energy
  else if (this.carry.energy === this.carryCapacity) {
   this.memory.state = 1;
+  this.deleteTask('deposit');
  }
 
  //if this has energy
  if (this.memory.state) {
-  this.construct();
+  return this.construct();
  }
  //if this has no energy
  else {
-  this.collect();
+  return this.collect();
  }
 };
 
 Creep.prototype.newt = function () {
  //state flipper
+ this.gatherAura();
+ this.depositAura();
  if (this.carry.energy === 0) {
   this.memory.state = 0;
  }
@@ -502,11 +576,11 @@ Creep.prototype.newt = function () {
 
  //if this has energy
  if (this.memory.state) {
-  this.deposit();
+  return this.deposit();
  }
  //if this has no energy
  else {
-  this.collect();
+  return this.collect();
  }
 };
 
@@ -579,7 +653,7 @@ function queen(spawn) {
  const r = spawn.room;
  const containers = r.find(FIND_STRUCTURES, { filter: (s) => s.structureType == 'container' });
  if (containers.length) {
-  console.log(containers);
+  //console.log(containers);
   for (let container in containers) {
    containers[container].report();
   }
@@ -603,25 +677,24 @@ function queen(spawn) {
  let frog = Memory.recipes.frog;
  let toad = Memory.recipes.toad;
  let newt = Memory.recipes.newt;
- let withdrawCap = (r.memory.jobs.collect.tasks ? r.memory.jobs.collect.tasks.size : 0);
- let frogCap = (r.memory.jobs.construct.tasks ? r.memory.jobs.construct.tasks.size : 0);
- let pickupCap = (r.memory.jobs.sweep.tasks ? r.memory.jobs.sweep.tasks.size : 0);
+ let newtCap = (Math.max(r.memory.jobs.collect.tasks.length, r.memory.jobs.deposit.tasks.length) ? Math.max(r.memory.jobs.collect.tasks.length, r.memory.jobs.deposit.tasks.length) : 0);
+ let frogCap = (Math.max(r.memory.jobs.construct.tasks.length, dust.length + r.memory.sc) ? Math.max(r.memory.jobs.construct.tasks.length, dust.length + r.memory.sc) : 1);
+ let toadCap = (rcl < 3 ? r.memory.sc * 2 : r.memory.sc);
  //we want to spawn creeps based on tasks needing to be done
+
  //so we have a variable count for toads since it takes a while for max mining on a single toad
- if (r.roleCount('toad') < r.memory.sc) {
+ if (r.roleCount('toad') < toadCap) {
+  //console.log(toadCap);
   let creepName = spawn.spawnCreep(toad, rcl);
-  //assign toad jobs
-
- } else if (r.roleCount('newt') < withdrawCap) {
-  //we make newts based on the amount of gather tasks we have
-  console.log(withdrawCap + ":" + pickupCap);
-  let creepName = spawn.spawnCreep(newt, rcl);
- } else if (r.roleCount('frog') < frogCap) {
-  //we make frogs based on the amount of build tasks we have
+ } else
+ if (r.roleCount('frog') < frogCap) {
+  //console.log(frogCap);
   let creepName = spawn.spawnCreep(frog, rcl);
+ } else
+ if (r.roleCount('newt') < newtCap) {
+  //console.log(newtCap);
+  let creepName = spawn.spawnCreep(newt, rcl);
  }
-
-
 }
 
 Creep.prototype.toad = function () {
@@ -630,14 +703,31 @@ Creep.prototype.toad = function () {
   this.memory.state = 0;
  }
  //if creep has energy
- else if (this.carry.energy > 49) {
+ else if (this.carry.energy > 45) {
   this.memory.state = 1;
  }
 
  //if this has energy
  if (this.memory.state) {
-  //console.log('frog this: ' + JSON.stringify(this));
-  return this.construct();
+  //drop container on mine
+  if (!this.memory.builtcontainer) {
+   if (this.room.createConstructionSite(this.pos, STRUCTURE_CONTAINER) === 0 || this.room.lookForAt(LOOK_CONSTRUCTION_SITES, this.pos).length) {
+    this.memory.builtcontainer = 1;
+    return Memory.emoji.frog;
+   } else {
+    this.memory.builtcontainer = 2;
+   }
+  }
+  if (this.memory.builtcontainer == 1) {
+   if (this.room.memory.jobs.construct.tasks.length) {
+    return this.construct();
+   } else {
+    this.memory.builtcontainer = null;
+   }
+  } else {
+   return this.mine();
+  }
+  return Memory.emoji.frog;
  }
  //if this has no energy
  else {
@@ -648,6 +738,9 @@ Creep.prototype.toad = function () {
 
 function tower(structure) {
  var nearenemies = structure.pos.findInRange(FIND_HOSTILE_CREEPS, 15);
+ if (!Memory.towers) {
+  Memory.towers = {};
+ }
  if (!Memory.towers[structure.id]) {
   Memory.towers[structure.id] = {};
  }
@@ -697,6 +790,545 @@ function tower(structure) {
  }
 }
 
+/*jshint -W008 */
+//// HEAL PLUS ////
+Creep.prototype.aid = function () {
+ //debrief task first
+ if (!this.room.memory.jobs.aid.tasks.has(this.memory.jobs.aid)) {
+  this.assignTask('aid');
+ }
+ try {
+  Game.getObjectById(this.memory.jobs.aid).debrief();
+ } catch (ex) {
+  if (this.room.memory.jobs.aid.tasks.length) {
+   this.room.memory.jobs.aid.tasks.delete(this.memory.jobs.aid);
+  }
+ }
+ //debrief only removes task from memory if appropriate and does not affect creep memory
+ switch (this.heal(Game.getObjectById(this.memory.jobs.aid))) {
+ case 0:
+  return Memory.emoji.aid;
+ case -7:
+  //invalid target, remove room memory
+  Game.getObjectById(this.memory.jobs.aid).deleteTask('aid');
+  //we also need to clear the assignment on the creep memory
+  this.deleteAssignment('aid');
+  //last, we have to decide if we should assign a new task
+  if (getTasksArray('aid').length) {
+   this.assignTask('aid');
+   return Memory.emoji.oops + Memory.emoji.aid + Memory.emoji.oops;
+  } else {
+   return this.eat();
+  }
+  return Memory.emoji.oops + Memory.emoji.aid + Memory.emoji.oops;
+ case -9:
+  //set move
+  this.moveTo(Game.getObjectById(this.memory.jobs.aid), {
+   visualizePathStyle: {
+    fill: 'transparent',
+    stroke: '#ffaaaa',
+    lineStyle: 'solid',
+    strokeWidth: .15,
+    opacity: .1
+   }
+  });
+  return Memory.emoji.aid;
+ case -12:
+  //if for any reason the wrong creep is in the build workers
+  this.deleteAssignment('aid');
+  this.deleteWorker('aid');
+  return Memory.emoji.oops + Memory.emoji.aid + Memory.emoji.oops;
+ }
+};
+
+/*jshint -W008 */
+/// WITHDRAW PLUS ///
+Creep.prototype.collect = function () {
+ //debrief task first
+ if (!this.room.memory.jobs.collect.tasks.has(this.memory.jobs.collect)) {
+  this.assignTask('collect');
+ }
+ try {
+  Game.getObjectById(this.memory.jobs.collect).debrief();
+ } catch (ex) {
+  if (this.room.memory.jobs.collect.tasks.length) {
+   this.room.memory.jobs.collect.tasks.delete(this.memory.jobs.collect);
+  }
+ }
+ //debrief only removes task from memory if appropriate and does not affect creep memory
+ switch (this.withdraw(Game.getObjectById(this.memory.jobs.collect), RESOURCE_ENERGY)) {
+ case 0:
+  Game.getObjectById(this.memory.jobs.collect).debrief();
+  return Memory.emoji.collect;
+ case -6:
+ case -7:
+ case -10:
+  //we need to clear the creep memory to completely remove the bad id
+  this.deleteAssignment('collect');
+  //assign a new task
+  if (getTasksArray('collect', this.room).length) {
+   return Memory.emoji.oops + Memory.emoji.collect + Memory.emoji.oops;
+  } else {
+   //if there are no tasks in the collect
+   if (this.memory.role == 'frog' || this.role == 'toad') {
+    //if the creep can mine do it
+    return this.mine();
+   } else {
+    //otherwise attempt to sweep
+    return this.sweep();
+   }
+   return Memory.emoji.oops + Memory.emoji.collect + Memory.emoji.oops;
+  }
+  return Memory.emoji.oops + Memory.emoji.collect + Memory.emoji.oops;
+ case -8:
+  //creep is full
+  this.memory.state = 1;
+  return Memory.emoji.frog;
+ case -9:
+  //set move
+  this.moveTo(Game.getObjectById(this.memory.jobs.collect), {
+   visualizePathStyle: {
+    fill: 'transparent',
+    stroke: '#eeff99',
+    lineStyle: 'dashed',
+    strokeWidth: .15,
+    opacity: .1
+   }
+  });
+  return Memory.emoji.hop;
+ }
+ return Memory.emoji.oops;
+};
+
+/*jshint -W008 */
+//// BUILD PLUS ////
+Creep.prototype.construct = function () {
+ //debrief task first
+ if (!this.room.memory.jobs.construct.tasks.has(this.memory.jobs.construct)) {
+  this.assignTask('construct');
+ }
+ try {
+  Game.getObjectById(this.memory.jobs.construct).debrief();
+ } catch (ex) {
+  if (this.room.memory.jobs.construct.tasks.length) {
+   this.room.memory.jobs.construct.tasks.delete(this.memory.jobs.construct);
+  }
+ }
+ //debrief only removes task from memory if appropriate and does not affect creep memory
+ switch (this.build(Game.getObjectById(this.memory.jobs.construct))) {
+ case 0:
+  return Memory.emoji.construct;
+ case -6:
+  //this should never occur but it's good to have preventative measures
+  this.memory.state = 0;
+  return Memory.emoji.frog;
+ case -7:
+  //if we get a -7 it means no target found
+  //since construct tasks are pulled directly from Game.constructionSites we know our construct tasks are valid
+  //this means the site was built successfully and we need to remove the task
+  if (this.room.memory.jobs.construct.tasks.has(this.memory.jobs.construct)) {
+   Game.getObjectById(this.memory.jobs.construct).deleteTask('construct');
+  }
+  //we also need to clear the assignment
+  this.deleteAssignment('construct');
+  //last, we have to decide if we should assign a new task
+  if (getTasksArray('construct', this.room).length) {
+   this.assignTask('construct');
+   return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
+  } else {
+   return this.upgrade();
+  }
+  return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
+ case -9:
+  //set move
+  this.moveTo(Game.getObjectById(this.memory.jobs.construct), {
+   visualizePathStyle: {
+    fill: 'transparent',
+    stroke: '#aacc66',
+    lineStyle: 'solid',
+    strokeWidth: .15,
+    opacity: .1
+   }
+  });
+  return Memory.emoji.frog;
+ case -12:
+  //if for any reason the wrong creep is in the construct workers
+  this.deleteAssignment('construct');
+  this.deleteWorker('construct');
+  return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
+ case -14:
+  //remove the construction site
+  Game.getObjectById(this.memory.jobs.construct).remove();
+  return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
+ }
+};
+
+/*jshint -W008 */
+/// TRANSFER PLUS ///
+Creep.prototype.deposit = function () {
+ //debrief task first
+ if (!this.room.memory.jobs.deposit.tasks.has(this.memory.jobs.deposit)) {
+  this.assignTask('deposit');
+ }
+ try {
+  Game.getObjectById(this.memory.jobs.deposit).debrief();
+ } catch (ex) {
+  if (this.room.memory.jobs.deposit.tasks.length) {
+   this.room.memory.jobs.deposit.tasks.delete(this.memory.jobs.deposit);
+  }
+ }
+ //debrief only removes task from memory if appropriate and does not affect creep memory
+ switch (this.transfer(Game.getObjectById(this.memory.jobs.deposit), RESOURCE_ENERGY)) {
+ case 0:
+  return Memory.emoji.deposit;
+ case -7:
+ case -8:
+ case -10:
+  //assign a new task
+  if (getTasksArray('deposit', this.room).length) {
+   this.assignTask('deposit');
+   //attempt to deposit again
+   return Memory.emoji.oops + Memory.emoji.deposit + Memory.emoji.oops;
+  } else {
+   //if there are no tasks in the deposit set
+   if (_.includes(this.body, WORK)) {
+    //if the creep can upgrade do it
+    return this.upgrade();
+   } else {
+    //otherwise attempt to eat
+    return this.eat();
+   }
+   return Memory.emoji.oops + Memory.emoji.deposit + Memory.emoji.oops;
+  }
+  return Memory.emoji.oops + Memory.emoji.deposit + Memory.emoji.oops;
+ case -6:
+  //creep is empty
+  this.memory.state = 0;
+  return Memory.emoji.frog;
+ case -9:
+  //set move
+  this.moveTo(Game.getObjectById(this.memory.jobs.deposit), {
+   reusePath: 100,
+   visualizePathStyle: {
+    fill: 'transparent',
+    stroke: '#eecc00',
+    lineStyle: 'dashed',
+    strokeWidth: .15,
+    opacity: .1
+   }
+  });
+  return Memory.emoji.frog;
+ }
+};
+
+/*jshint -W008 */
+//// RENEWCREEP PLUS ////
+Creep.prototype.eat = function () {
+ this.move(Math.floor(Math.random() * (8)));
+ return Memory.emoji.frog;
+ if (!this.memory.jobs.eat) {
+  this.assignTask('eat');
+ }
+ this.transfer(Game.getObjectById(this.memory.jobs.eat), RESOURCE_ENERGY);
+ switch (Game.getObjectById(this.memory.jobs.eat).renewCreep(this)) {
+ case 0:
+  //no need to clear memory for eat, creep eat at their convenience as an endpoint
+  return Memory.emoji.eat;
+ case -6:
+ case -7:
+ case -8:
+  //creep timer is full OR
+  //spawn doesn't have enough energy OR
+  //object is not a creep
+  //move at random for now
+  this.move(Math.floor(Math.random() * (8)));
+  return Memory.emoji.oops + Memory.emoji.eat + Memory.emoji.oops;
+ case -9:
+  //set move
+  this.moveTo(Game.getObjectById(this.memory.jobs.eat), {
+   visualizePathStyle: {
+    fill: 'transparent',
+    stroke: '#00eeff',
+    lineStyle: 'solid',
+    strokeWidth: .15,
+    opacity: .1
+   }
+  });
+  return Memory.emoji.frog;
+ }
+};
+
+
+// LAZINESS PROTOTYPES //
+
+//sacrifice action
+Creep.prototype.sacrifice = function () {
+ return Game.getObjectById(this.memory.jobs.eat).recycleCreep(this);
+};
+
+/*jshint -W008 */
+//// REPAIR PLUS ////
+Creep.prototype.fix = function () {
+ //debrief task first
+ if (!this.room.memory.jobs.fix.tasks.has(this.memory.jobs.fix)) {
+  this.assignTask('fix');
+ }
+ try {
+  Game.getObjectById(this.memory.jobs.fix).debrief();
+ } catch (ex) {
+  if (this.room.memory.jobs.fix.tasks.length) {
+   this.room.memory.jobs.fix.tasks.delete(this.memory.jobs.fix);
+  }
+ }
+ //debrief only removes task from memory if appropriate and does not affect creep memory
+ switch (this.repair(Game.getObjectById(this.memory.jobs.fix))) {
+ case 0:
+  return Memory.emoji.fix;
+ case -6:
+  //this should never occur but it's good to have preventative measures
+  this.memory.state = 0;
+  return Memory.emoji.frog;
+ case -7:
+  //invalid target, remove room memory
+  Game.getObjectById(this.memory.jobs.fix).deleteTask('fix');
+  //we also need to clear the assignment on the creep memory
+  this.deleteAssignment('fix');
+  //last, we have to decide if we should assign a new task
+  if (getTasksArray('fix').length) {
+   this.assignTask('fix');
+   return Memory.emoji.oops + Memory.emoji.fix + Memory.emoji.oops;
+  } else {
+   this.memory.state = 0;
+  }
+  return Memory.emoji.oops + Memory.emoji.fix + Memory.emoji.oops;
+ case -9:
+  //set move
+  this.moveTo(Game.getObjectById(this.memory.jobs.fix), {
+   visualizePathStyle: {
+    fill: 'transparent',
+    stroke: '#ffaaaa',
+    lineStyle: 'solid',
+    strokeWidth: .15,
+    opacity: .1
+   }
+  });
+  return Memory.emoji.fix;
+ case -12:
+  //if for any reason the wrong creep is in the build workers
+  this.deleteAssignment('fix');
+  this.deleteWorker('fix');
+  return Memory.emoji.oops + Memory.emoji.fix + Memory.emoji.oops;
+ }
+};
+
+/*jshint -W008 */
+//// HARVEST PLUS ////
+Creep.prototype.mine = function () {
+ try {
+  switch (this.harvest(Game.getObjectById(this.memory.jobs.mine))) {
+  case 0:
+   //no need to clear memory for mine, sources are permanent
+   //upgrade if able
+   if (this.upgradeController(this.room.controller) === 0) {
+    return Memory.emoji.sogood;
+   }
+   if (!this.memory.container && this.memory.builtcontainer === 0) {
+    var source = Game.getObjectById(this.memory.jobs.mine);
+    var container = source.pos.findInRange(FIND_STRUCTURES, 2, { filter: (c) => c.structureType == STRUCTURE_CONTAINER });
+    if (container.length) {
+     this.memory.container = container[0].id;
+    }
+   }
+   if (this.memory.container && !this.pos.isEqualTo(this.memory.container.pos)) {
+    this.moveTo(Game.getObjectById(this.memory.container));
+    return Memory.emoji.hop;
+   }
+   return Memory.emoji.mine;
+  case -5:
+  case -7:
+   //extractor not found OR
+   //not a valid source object
+   this.assignTask('mine');
+   return Memory.emoji.oops + Memory.emoji.mine + Memory.emoji.oops;
+  case -6:
+   //source has no energy
+   if (this.memory.role == 'toad') {
+    //toads eat if no energy in source
+    return this.eat();
+   } else if (this.memory.role == 'frog') {
+    //frogs look for dropped energy before eating
+    return this.sweep();
+   }
+   return Memory.emoji.oops + Memory.emoji.mine + Memory.emoji.oops;
+  case -9:
+   //set move
+   this.moveTo(Game.getObjectById(this.memory.jobs.mine), {
+    visualizePathStyle: {
+     reusePath: 100,
+     fill: 'transparent',
+     stroke: '#eeff99',
+     lineStyle: 'solid',
+     strokeWidth: .15,
+     opacity: .1
+    }
+   });
+   return Memory.emoji.hop;
+  case -12:
+   //no work parts
+   this.deleteWorker('mine');
+   this.deleteAssignment('mine');
+   return Memory.emoji.oops + Memory.emoji.mine + Memory.emoji.oops;
+  }
+ } catch (ex) {
+  //console.log(ex);
+  this.assignTask('mine');
+ }
+};
+
+/*jshint -W008 */
+/// PICKUP PLUS ///
+Creep.prototype.sweep = function () {
+ //debrief task first
+ if (!this.room.memory.jobs.sweep.tasks.has(this.memory.jobs.sweep)) {
+  this.assignTask('sweep');
+ }
+ try {
+  Game.getObjectById(this.memory.jobs.sweep).debrief();
+ } catch (ex) {
+  if (this.room.memory.jobs.sweep.tasks.length) {
+   this.room.memory.jobs.sweep.tasks.delete(this.memory.jobs.sweep);
+  }
+ }
+ //debrief only removes task from memory if appropriate and does not affect creep memory
+ switch (this.pickup(Game.getObjectById(this.memory.jobs.sweep))) {
+ case 0:
+  //memory is already cleared
+  return Memory.emoji.sweep;
+ case -7:
+ case -8:
+  //we need to clear the assignment from the assignment list as well as the job list in room memory
+  this.deleteAssignment('sweep');
+  //assign a new task
+  if (getTasksArray('sweep', this.room).length) {
+   this.assignTask('sweep');
+   return Memory.emoji.oops + Memory.emoji.sweep + Memory.emoji.oops;
+  } else {
+   //if there are no tasks in the sweep set
+   if (_.includes(this.body, WORK)) {
+    //if the creep can upgrade do it
+    return this.upgrade();
+   } else {
+    //otherwise attempt to eat
+    return this.eat();
+   }
+   return Memory.emoji.oops + Memory.emoji.sweep + Memory.emoji.oops;
+  }
+  return Memory.emoji.oops + Memory.emoji.sweep + Memory.emoji.oops;
+ case -9:
+  //set move
+  this.moveTo(Game.getObjectById(this.memory.jobs.sweep), {
+   visualizePathStyle: {
+    fill: 'transparent',
+    stroke: '#eecc00',
+    lineStyle: 'dashed',
+    strokeWidth: .15,
+    opacity: .1
+   }
+  });
+  return Memory.emoji.frog;
+ }
+};
+
+/*jshint -W008 */
+//// UPGRADECONTROLLER PLUS ////
+Creep.prototype.upgrade = function () {
+ switch (this.upgradeController(Game.getObjectById(this.memory.jobs.upgrade))) {
+ case 0:
+  //no need to clear memory for upgrade, controller is permanent
+  return Memory.emoji.upgrade;
+ case -6:
+  //this should never occur but it's good to have preventative measures
+  this.memory.state = 0;
+  return Memory.emoji.oops + Memory.emoji.upgrade + Memory.emoji.oops;
+ case -7:
+  //we need to clear the assignment
+  this.deleteAssignment('upgrade');
+  //reset task assignment
+  if (getTasksArray('upgrade', this.room).length) {
+   //task is there
+   this.assignTask('upgrade');
+   //try again
+  }
+  return Memory.emoji.oops + Memory.emoji.upgrade + Memory.emoji.oops;
+ case -9:
+  //set move
+  this.moveTo(Game.getObjectById(this.memory.jobs.upgrade), {
+   visualizePathStyle: {
+    fill: 'transparent',
+    stroke: '#ffffff',
+    lineStyle: 'solid',
+    strokeWidth: .15,
+    opacity: .1
+   }
+  });
+  return Memory.emoji.frog;
+ }
+};
+
+/*jshint -W008 */
+//// ATTACK PLUS ////
+Creep.prototype.whack = function () {
+ //debrief task first
+ if (!this.room.memory.jobs.whack.tasks.has(this.memory.jobs.whack)) {
+  this.assignTask('whack');
+ }
+ try {
+  Game.getObjectById(this.memory.jobs.whack).debrief();
+ } catch (ex) {
+  if (this.room.memory.jobs.whack.tasks.length) {
+   this.room.memory.jobs.whack.tasks.delete(this.memory.jobs.whack);
+  }
+ }
+ //debrief only removes task from memory if appropriate and does not affect creep memory
+ switch (this.attack(Game.getObjectById(this.memory.jobs.whack))) {
+ case 0:
+  //clear id from room's task set
+  Game.getObjectById(this.memory.jobs.whack).deleteTask('whack');
+  return Memory.emoji.whack;
+ case -7:
+  //invalid target
+  Game.getObjectById(this.memory.jobs.whack).deleteTask('whack');
+  //we also need to clear the assignment
+  this.deleteAssignment('whack');
+  //last, we have to decide if we should assign a new task
+  if (getTasksArray('whack').length) {
+   this.assignTask('whack');
+   return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
+  } else {
+   this.eat();
+   return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
+  }
+  return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
+ case -9:
+  //set move
+  this.moveTo(Game.getObjectById(this.memory.jobs.whack), {
+   visualizePathStyle: {
+    fill: 'transparent',
+    stroke: '#ff0000',
+    lineStyle: 'solid',
+    strokeWidth: .15,
+    opacity: .1
+   }
+  });
+  return Memory.emoji.whack;
+ case -12:
+  //if for any reason the wrong creep is in the build workers
+  this.deleteAssignment('whack');
+  this.deleteWorker('whack');
+  return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
+ }
+};
+
 //first set memory structures
 if (!Memory.recipes) {
  Memory.emoji = {
@@ -715,7 +1347,8 @@ if (!Memory.recipes) {
   aid: '💊',
   pickup: '✨',
   suicide: '💮',
-  sogood: '✨🐸✨'
+  sogood: '✨💨🐸✨',
+  hop: '💨'
  };
  Memory.recipes = {};
  Memory.recipes.frog = {
@@ -812,6 +1445,7 @@ if (!Memory.recipes) {
    role: 'toad',
    //limit resource type to avoid chemical poisoning
    resourceType: RESOURCE_ENERGY,
+   builtcontainer: 0,
    jobs: {
     construct: null,
     fix: null,
@@ -845,15 +1479,17 @@ module.exports.loop = function () {
   Game.getObjectById(id).room.memory.jobs.construct.tasks.add(id);
  }
  //then trigger creep behavior
- for (let name in Game.creeps) {
+ for (let name in Memory.creeps) {
   if (!Game.creeps[name]) {
    //clear creep work registration
-   Game.creeps[name].deleteWorkerAll();
-   //delete creep from memory
-   delete Game.creeps[name];
+   console.log('DEAD: ' + name);
+   deleteWorkerAll(Memory.creeps[name], Memory.creeps[name].room, name);
+   delete Memory.creeps[name];
   }
   var creep = Game.creeps[name];
-  creep.memory.room = creep.room.name;
+  if (!creep.memory.room) {
+   creep.memory.room = creep.room.name;
+  }
   switch (creep.memory.role) {
   case 'redspawn':
    redspawn(creep);
@@ -881,477 +1517,3 @@ module.exports.loop = function () {
 };
 //graphs
 //collect_stats();
-
-/*jshint -W008 */
-//// HEAL PLUS ////
-Creep.prototype.aid = function () {
- //we need to clear the task manually from room task memory without harming the creep memory
- Game.getObjectById(this.memory.jobs.aid).debrief('aid');
- //now we can switch
- switch (this.heal(Game.getObjectById(this.memory.jobs.aid))) {
- case 0:
-  return Memory.emoji.aid;
- case -7:
-  //invalid target, remove room memory
-  Game.getObjectById(this.memory.jobs.aid).deleteTask('aid');
-  //we also need to clear the assignment on the creep memory
-  this.deleteAssignment('aid');
-  //last, we have to decide if we should assign a new task
-  if (getTasksArray('aid').length) {
-   this.assignTask('aid');
-   this.aid();
-   return Memory.emoji.oops + Memory.emoji.aid + Memory.emoji.oops;
-  } else {
-   this.eat();
-   return Memory.emoji.oops + Memory.emoji.aid + Memory.emoji.oops;
-  }
-  return Memory.emoji.oops + Memory.emoji.aid + Memory.emoji.oops;
- case -9:
-  //set move
-  this.moveTo(Game.getObjectById(this.memory.jobs.aid), {
-   visualizePathStyle: {
-    fill: 'transparent',
-    stroke: '#ffaaaa',
-    lineStyle: 'solid',
-    strokeWidth: .15,
-    opacity: .1
-   }
-  });
-  return Memory.emoji.aid;
- case -12:
-  //if for any reason the wrong creep is in the build workers
-  this.deleteAssignment('aid');
-  this.deleteWorker('aid');
-  return Memory.emoji.oops + Memory.emoji.aid + Memory.emoji.oops;
- }
-};
-
-/*jshint -W008 */
-/// WITHDRAW PLUS ///
-Creep.prototype.collect = function () {
- //debrief task first
- Game.getObjectById(this.memory.jobs.collect).debrief();
- //debrief only removes task from memory if appropriate and does not affect creep memory
- switch (this.withdraw(Game.getObjectById(this.memory.jobs.collect))) {
- case 0:
-  return Memory.emoji.collect;
- case -6:
- case -7:
- case -10:
-  //we need to clear the creep memory to completely remove the bad id
-  this.deleteAssignment('collect');
-  //assign a new task
-  if (getTasksArray('collect').length) {
-   this.assignTask('collect');
-   //attempt to collect again
-   this.collect();
-   return Memory.emoji.oops + Memory.emoji.collect + Memory.emoji.oops;
-  } else {
-   //if there are no tasks in the collect
-   if (_.includes(this.body, WORK)) {
-    //if the creep can mine do it
-    this.mine();
-   } else {
-    //otherwise attempt to sweep
-    this.sweep();
-   }
-   return Memory.emoji.oops + Memory.emoji.collect + Memory.emoji.oops;
-  }
-  return Memory.emoji.oops + Memory.emoji.collect + Memory.emoji.oops;
- case -8:
-  //creep is full
-  this.memory.state = 1;
-  return Memory.emoji.frog;
- case -9:
-  //set move
-  this.moveTo(Game.getObjectById(this.memory.jobs.collect), {
-   visualizePathStyle: {
-    fill: 'transparent',
-    stroke: '#eeff99',
-    lineStyle: 'dashed',
-    strokeWidth: .15,
-    opacity: .1
-   }
-  });
-  return Memory.emoji.frog;
- }
-};
-
-/*jshint -W008 */
-//// BUILD PLUS ////
-Creep.prototype.construct = function () {
- //debrief task first
- if (!this.memory.jobs.construct || !Game.getObjectById(this.memory.jobs.construct)) {
-  this.assignTask('construct');
- }
- Game.getObjectById(this.memory.jobs.construct).debrief();
- //debrief only removes task from memory if appropriate and does not affect creep memory
- switch (this.build(Game.getObjectById(this.memory.jobs.construct))) {
- case 0:
-  return Memory.emoji.construct;
- case -6:
-  //this should never occur but it's good to have preventative measures
-  this.memory.state = 0;
-  return Memory.emoji.frog;
- case -7:
-  //if we get a -7 it means no target found
-  //since construct tasks are pulled directly from Game.constructionSites we know our construct tasks are valid
-  //this means the site was built successfully and we need to remove the task
-  Game.getObjectById(this.memory.jobs.construct).deleteTask('construct');
-  //we also need to clear the assignment
-  this.deleteAssignment('construct');
-  //last, we have to decide if we should assign a new task
-  if (getTasksArray('construct').length) {
-   this.assignTask('construct');
-   this.construct();
-   return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
-  } else {
-   this.upgrade();
-   return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
-  }
-  return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
- case -9:
-  //set move
-  this.moveTo(Game.getObjectById(this.memory.jobs.construct), {
-   visualizePathStyle: {
-    fill: 'transparent',
-    stroke: '#aacc66',
-    lineStyle: 'solid',
-    strokeWidth: .15,
-    opacity: .1
-   }
-  });
-  return Memory.emoji.frog;
- case -12:
-  console.log('bingbingbing');
-  //if for any reason the wrong creep is in the construct workers
-  this.deleteAssignment('construct');
-  this.deleteWorker('construct');
-  return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
- case -14:
-  //remove the construction site
-  Game.getObjectById(this.memory.jobs.construct).remove();
-  return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
- }
-};
-
-/*jshint -W008 */
-/// TRANSFER PLUS ///
-Creep.prototype.deposit = function () {
- //debrief task first
- Game.getObjectById(this.memory.jobs.deposit).debrief();
- //debrief only removes task from memory if appropriate and does not affect creep memory
- switch (this.transfer(Game.getObjectById(this.memory.jobs.deposit))) {
- case 0:
-  return Memory.emoji.deposit;
- case -7:
- case -8:
- case -10:
-  //we need to clear the assignment
-  this.deleteAssignment('deposit');
-  //assign a new task
-  if (getTasksArray('deposit').length) {
-   this.assignTask('deposit');
-   //attempt to deposit again
-   this.deposit();
-   return Memory.emoji.oops + Memory.emoji.deposit + Memory.emoji.oops;
-  } else {
-   //if there are no tasks in the deposit set
-   if (_.includes(this.body, WORK)) {
-    //if the creep can upgrade do it
-    this.upgrade();
-   } else {
-    //otherwise attempt to eat
-    this.eat();
-   }
-   return Memory.emoji.oops + Memory.emoji.deposit + Memory.emoji.oops;
-  }
-  return Memory.emoji.oops + Memory.emoji.deposit + Memory.emoji.oops;
- case -6:
-  //creep is empty
-  this.memory.state = 0;
-  return Memory.emoji.frog;
- case -9:
-  //set move
-  this.moveTo(Game.getObjectById(this.memory.jobs.deposit), {
-   visualizePathStyle: {
-    fill: 'transparent',
-    stroke: '#eecc00',
-    lineStyle: 'dashed',
-    strokeWidth: .15,
-    opacity: .1
-   }
-  });
-  return Memory.emoji.frog;
- }
-};
-
-/*jshint -W008 */
-//// RENEWCREEP PLUS ////
-Creep.prototype.eat = function () {
- this.transfer(Game.getObjectById(this.memory.eat), RESOURCE_ENERGY);
- switch (Game.getObjectById(this.memory.eat).renewCreep(this)) {
- case 0:
-  //no need to clear memory for eat, creep eat at their convenience as an endpoint
-  return Memory.emoji.eat;
- case -6:
- case -7:
- case -8:
-  //creep timer is full OR
-  //spawn doesn't have enough energy OR
-  //object is not a creep
-  //move at random for now
-  this.move(Math.floor(Math.random() * (8)));
-  return Memory.emoji.oops + Memory.emoji.eat + Memory.emoji.oops;
- case -9:
-  //set move
-  this.moveTo(Game.getObjectById(this.memory.eat), {
-   visualizePathStyle: {
-    fill: 'transparent',
-    stroke: '#00eeff',
-    lineStyle: 'solid',
-    strokeWidth: .15,
-    opacity: .1
-   }
-  });
-  return Memory.emoji.frog;
- }
-};
-
-
-// LAZINESS PROTOTYPES //
-
-//sacrifice action
-Creep.prototype.sacrifice = function () {
- return Game.getObjectById(this.memory.eat).recycleCreep(this);
-};
-
-/*jshint -W008 */
-//// REPAIR PLUS ////
-Creep.prototype.fix = function () {
- //we need to clear the task manually from room task memory without harming the creep memory
- Game.getObjectById(this.memory.jobs.fix).debrief('fix');
- //now we can switch
- switch (this.repair(Game.getObjectById(this.memory.jobs.fix))) {
- case 0:
-  return Memory.emoji.fix;
- case -6:
-  //this should never occur but it's good to have preventative measures
-  this.memory.state = 0;
-  return Memory.emoji.frog;
- case -7:
-  //invalid target, remove room memory
-  Game.getObjectById(this.memory.jobs.fix).deleteTask('fix');
-  //we also need to clear the assignment on the creep memory
-  this.deleteAssignment('fix');
-  //last, we have to decide if we should assign a new task
-  if (getTasksArray('fix').length) {
-   this.assignTask('fix');
-   this.fix();
-   return Memory.emoji.oops + Memory.emoji.fix + Memory.emoji.oops;
-  } else {
-   this.memory.state = 0;
-  }
-  return Memory.emoji.oops + Memory.emoji.fix + Memory.emoji.oops;
- case -9:
-  //set move
-  this.moveTo(Game.getObjectById(this.memory.jobs.fix), {
-   visualizePathStyle: {
-    fill: 'transparent',
-    stroke: '#ffaaaa',
-    lineStyle: 'solid',
-    strokeWidth: .15,
-    opacity: .1
-   }
-  });
-  return Memory.emoji.fix;
- case -12:
-  //if for any reason the wrong creep is in the build workers
-  this.deleteAssignment('fix');
-  this.deleteWorker('fix');
-  return Memory.emoji.oops + Memory.emoji.fix + Memory.emoji.oops;
- }
-};
-
-/*jshint -W008 */
-//// HARVEST PLUS ////
-Creep.prototype.mine = function () {
- try {
-  switch (this.harvest(Game.getObjectById(this.memory.jobs.mine))) {
-  case 0:
-   //no need to clear memory for mine, sources are permanent
-   //upgrade if able
-   if (this.upgradeController(this.room.controller) === 0) {
-    return Memory.emoji.sogood;
-   }
-   return Memory.emoji.mine;
-  case -5:
-  case -7:
-   //extractor not found OR
-   //not a valid source object
-   this.assignTask('mine');
-   return Memory.emoji.oops + Memory.emoji.mine + Memory.emoji.oops;
-  case -6:
-   //source has no energy
-   if (this.memory.role == 'toad') {
-    //toads eat if no energy in source
-    this.eat();
-   } else if (this.memory.role == 'frog') {
-    //frogs look for dropped energy before eating
-    this.sweep();
-   }
-   return Memory.emoji.oops + Memory.emoji.mine + Memory.emoji.oops;
-  case -9:
-   //set move
-   this.moveTo(Game.getObjectById(this.memory.jobs.mine), {
-    visualizePathStyle: {
-     reusePath: 100,
-     fill: 'transparent',
-     stroke: '#eeff99',
-     lineStyle: 'solid',
-     strokeWidth: .15,
-     opacity: .1
-    }
-   });
-   return Memory.emoji.frog;
-  case -12:
-   //no work parts
-   this.deleteWorker('mine');
-   this.deleteAssignment('mine');
-   return Memory.emoji.oops + Memory.emoji.mine + Memory.emoji.oops;
-  }
- } catch (ex) {
-  console.log(ex);
-  this.assignTask('mine');
- }
-};
-
-/*jshint -W008 */
-/// PICKUP PLUS ///
-Creep.prototype.sweep = function () {
- //debrief first
- Game.getObjectById(this.memory.jobs.sweep).debrief('sweep');
- //now we can switch
- switch (this.pickup(Game.getObjectById(this.memory.jobs.sweep))) {
- case 0:
-  //memory is already cleared
-  return Memory.emoji.sweep;
- case -7:
- case -8:
-  //we need to clear the assignment from the assignment list as well as the job list in room memory
-  this.deleteAssignment('sweep');
-  //assign a new task
-  if (getTasksArray('sweep').length) {
-   this.assignTask('sweep');
-   //attempt to sweep again
-   this.sweep();
-   return Memory.emoji.oops + Memory.emoji.sweep + Memory.emoji.oops;
-  } else {
-   //if there are no tasks in the sweep set
-   if (_.includes(this.body, WORK)) {
-    //if the creep can upgrade do it
-    this.upgrade();
-   } else {
-    //otherwise attempt to eat
-    this.eat();
-   }
-   return Memory.emoji.oops + Memory.emoji.sweep + Memory.emoji.oops;
-  }
-  return Memory.emoji.oops + Memory.emoji.sweep + Memory.emoji.oops;
- case -9:
-  //set move
-  this.moveTo(Game.getObjectById(this.memory.jobs.sweep), {
-   visualizePathStyle: {
-    fill: 'transparent',
-    stroke: '#eecc00',
-    lineStyle: 'dashed',
-    strokeWidth: .15,
-    opacity: .1
-   }
-  });
-  return Memory.emoji.frog;
- }
-};
-
-/*jshint -W008 */
-//// UPGRADECONTROLLER PLUS ////
-Creep.prototype.upgrade = function () {
- switch (this.upgradeController(Game.getObjectById(this.memory.jobs.upgrade))) {
- case 0:
-  //no need to clear memory for upgrade, controller is permanent
-  return Memory.emoji.upgrade;
- case -6:
-  //this should never occur but it's good to have preventative measures
-  this.memory.state = 0;
-  return Memory.emoji.oops + Memory.emoji.upgrade + Memory.emoji.oops;
- case -7:
-  //we need to clear the assignment
-  this.deleteAssignment('upgrade');
-  //reset task assignment
-  if (getTasksArray('upgrade').length) {
-   //task is there
-   this.assignTask('upgrade');
-   //try again
-   this.upgrade();
-  }
-  return Memory.emoji.oops + Memory.emoji.upgrade + Memory.emoji.oops;
- case -9:
-  //set move
-  this.moveTo(Game.getObjectById(this.memory.jobs.build), {
-   visualizePathStyle: {
-    fill: 'transparent',
-    stroke: '#ffffff',
-    lineStyle: 'solid',
-    strokeWidth: .15,
-    opacity: .1
-   }
-  });
-  return Memory.emoji.frog;
- }
-};
-
-/*jshint -W008 */
-//// ATTACK PLUS ////
-Creep.prototype.whack = function () {
- //we need to clear the task manually from room task memory without harming the creep memory
- Game.getObjectById(this.memory.jobs.whack).debrief('whack');
- //now we can switch
- switch (this.attack(Game.getObjectById(this.memory.jobs.whack))) {
- case 0:
-  //clear id from room's task set
-  Game.getObjectById(this.memory.jobs.whack).deleteTask('whack');
-  return Memory.emoji.whack;
- case -7:
-  //invalid target
-  Game.getObjectById(this.memory.jobs.whack).deleteTask('whack');
-  //we also need to clear the assignment
-  this.deleteAssignment('whack');
-  //last, we have to decide if we should assign a new task
-  if (getTasksArray('whack').length) {
-   this.assignTask('whack');
-   this.whack();
-   return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
-  } else {
-   this.eat();
-   return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
-  }
-  return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
- case -9:
-  //set move
-  this.moveTo(Game.getObjectById(this.memory.jobs.whack), {
-   visualizePathStyle: {
-    fill: 'transparent',
-    stroke: '#ff0000',
-    lineStyle: 'solid',
-    strokeWidth: .15,
-    opacity: .1
-   }
-  });
-  return Memory.emoji.whack;
- case -12:
-  //if for any reason the wrong creep is in the build workers
-  this.deleteAssignment('whack');
-  this.deleteWorker('whack');
-  return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
- }
-};
