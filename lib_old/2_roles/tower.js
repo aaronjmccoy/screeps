@@ -1,20 +1,20 @@
 function tower(structure) {
  var nearenemies = structure.pos.findInRange(FIND_HOSTILE_CREEPS, 15);
- if (!structure.room.memory.towers) {
-  structure.room.memory.towers = {};
+ if (!Memory.towers) {
+  Memory.towers = {};
  }
- if (!structure.room.memory.towers[structure.id]) {
-  structure.room.memory.towers[structure.id] = {};
+ if (!Memory.towers[structure.id]) {
+  Memory.towers[structure.id] = {};
  }
- if (!structure.room.memory.towers[structure.id].mode) {
-  structure.room.memory.towers[structure.id].mode = 'alert';
+ if (!Memory.towers[structure.id].mode) {
+  Memory.towers[structure.id].mode = 'alert';
  }
  if (structure.energy <= 900 || nearenemies.length > 0) {
-  structure.room.memory.towers[structure.id].mode = 'alert';
+  Memory.towers[structure.id].mode = 'alert';
  } else if (structure.energy > 900) {
-  structure.room.memory.towers[structure.id].mode = 'repair';
+  Memory.towers[structure.id].mode = 'repair';
  }
- var mode = structure.room.memory.towers[structure.id].mode;
+ var mode = Memory.towers[structure.id].mode;
  if (mode == 'alert') {
   var hurt = structure.room.find(FIND_MY_CREEPS, { filter: object => object.hits < object.hitsMax });
   if (nearenemies.length > 0) {
