@@ -9,10 +9,10 @@ StructureContainer.prototype.report = function () {
 
 StructureController.prototype.report = function () {
   //if our max energy capacity has been reached for given rcl
-  if (this.room.energyCapacity == CONTROLLER_STRUCTURES.extension[this.room.rcl]*EXTENSION_ENERGY_CAPACITY[this.room.rcl]) {
+  //if (this.room.energyCapacity == CONTROLLER_STRUCTURES.extension[this.room.rcl]*EXTENSION_ENERGY_CAPACITY[this.room.rcl]) {
     //push to task array
    this.room.memory.jobs.upgrade.tasks.push(this.id);
-  }
+  //}
 };
 
 ////  WHEN A CREEP IS THE TARGET OF A TASK ////
@@ -34,7 +34,7 @@ Resource.prototype.report = function () {
 };
 
 StructureRoad.prototype.report = function () {
-  if (this.hits < this.hitsMax) {
+  if (this.hits < 4000) {
     this.room.memory.jobs.fix.tasks.push(this.id);
   }
 };
@@ -80,6 +80,15 @@ Room.prototype.queueTasks = function() {
       this.memory.jobs.mine.tasks.push(source.id);
     }
   }
+  const frogs = this.find(FIND_MY_CREEPS, { filter: (c) => c.memory.role == 'frog' });
+  if (frogs.length) {
+    for (let f in frogs) {
+      var frog = frogs[f];
+      if(frog.carry.energy < frog.carryCapacity){
+        this.memory.jobs.deposit.tasks.push(frog.id);
+      }
+    }
+  }
 }
 
 Room.prototype.releaseTask = function(job) {
@@ -107,10 +116,9 @@ Source.prototype.report = function () {
 };
 
 StructureSpawn.prototype.report = function () {
+  this.room.memory.jobs.eat.tasks.push(this.id);
   if (this.energy < this.energyCapacity) {
     this.room.memory.jobs.deposit.tasks.push(this.id);
-  }else{
-    this.room.memory.jobs.eat.tasks.push(this.id);
   }
   if (this.hits < this.hitsMax) {
     this.room.memory.jobs.fix.tasks.push(this.id);
@@ -186,14 +194,14 @@ Creep.prototype.aid = function() {
 /// WITHDRAW PLUS ///
 Creep.prototype.collect = function() {
   if (this.memory.jobs.collect) {
-    //debrief only removes task from memory if appropriate and does not affect creep memory
     switch (this.withdraw(Game.getObjectById(this.memory.jobs.collect), RESOURCE_ENERGY)) {
       case 0:
         return Memory.emoji.collect;
       case -9:
+      if(!this.collectAura()){
         //set move
         this.moveTo(Game.getObjectById(this.memory.jobs.collect), {
-          reusePath: 1,
+          reusePath: 10,
           visualizePathStyle: {
             fill: 'transparent',
             stroke: '#eeff99',
@@ -203,6 +211,9 @@ Creep.prototype.collect = function() {
           }
         })
         return Memory.emoji.hop;
+      }else{
+        return Memory.emoji.sogood;
+      }
     }
   }
   return Memory.emoji.oops + Memory.emoji.collect + Memory.emoji.oops;
@@ -216,6 +227,7 @@ Creep.prototype.construct = function() {
       case 0:
         return Memory.emoji.construct;
       case -9:
+      if(!this.constructAura()){
         //set move
         this.moveTo(Game.getObjectById(this.memory.jobs.construct), {
           visualizePathStyle: {
@@ -227,6 +239,10 @@ Creep.prototype.construct = function() {
           }
         });
         return Memory.emoji.hop;
+      }else{
+        return Memory.emoji.sogood;
+      }
+
     }
   }
   return Memory.emoji.oops + Memory.emoji.construct + Memory.emoji.oops;
@@ -275,7 +291,7 @@ Creep.prototype.constructAura = function () {
  //console.log(nearExt);
  for (let e in this.room.memory.jobs.construct.tasks) {
   //console.log(this.room.memory.jobs.deposit.tasks[e]);
-  if (this.build(Game.getObjectById(this.room.memory.jobs.construct.tasks[e]), RESOURCE_ENERGY) === 0) {
+  if (this.build(this.pos.findClosestByRange(FIND_CONSTRUCTION_SITES), RESOURCE_ENERGY) === 0) {
    return true;
   }
  }
@@ -290,6 +306,14 @@ Creep.prototype.depositAura = function () {
     return true;
    }
   }
+ }
+ if(this.memory.role == 'toad'){
+   if (this.transfer(this.room.storage, RESOURCE_ENERGY) === 0) {
+    return true;
+   }
+   if (this.transfer(this.room.terminal, RESOURCE_ENERGY) === 0) {
+    return true;
+   }
  }
  return false;
 };
@@ -373,18 +397,22 @@ Creep.prototype.deposit = function() {
       case 0:
         return Memory.emoji.deposit;
       case -9:
-        //set move
-        this.moveTo(Game.getObjectById(this.memory.jobs.deposit), {
-          reusePath: 10,
-          visualizePathStyle: {
-            fill: 'transparent',
-            stroke: '#eecc00',
-            lineStyle: 'dashed',
-            strokeWidth: .15,
-            opacity: .1
-          }
-        });
-        return Memory.emoji.frog;
+        if(!this.depositAura()){
+          //set move
+          this.moveTo(Game.getObjectById(this.memory.jobs.deposit), {
+            reusePath: 10,
+            visualizePathStyle: {
+              fill: 'transparent',
+              stroke: '#eecc00',
+              lineStyle: 'dashed',
+              strokeWidth: .15,
+              opacity: .1
+            }
+          });
+          return Memory.emoji.frog;
+        }else{
+          return Memory.emoji.sogood;
+        }
     }
   }
   return Memory.emoji.oops + Memory.emoji.deposit + Memory.emoji.oops;
@@ -398,6 +426,7 @@ Creep.prototype.eat = function() {
       case 0:
         return Memory.emoji.eat;
       case -9:
+      if(!this.eatAura()){
         //set move
         this.moveTo(Game.getObjectById(this.memory.jobs.eat), {
           visualizePathStyle: {
@@ -409,7 +438,11 @@ Creep.prototype.eat = function() {
           }
         });
         return Memory.emoji.hop;
+      }else{
+        return Memory.emoji.sogood;
+      }
     }
+    return this.mineAura();
   }
   return Memory.emoji.oops + Memory.emoji.eat + Memory.emoji.oops;
 };
@@ -422,17 +455,20 @@ Creep.prototype.fix = function() {
       case 0:
         return Memory.emoji.fix;
       case -9:
-        //set move
-        this.moveTo(Game.getObjectById(this.memory.jobs.fix), {
-          visualizePathStyle: {
-            fill: 'transparent',
-            stroke: '#ffaaaa',
-            lineStyle: 'solid',
-            strokeWidth: .15,
-            opacity: .1
-          }
-        });
-        return Memory.emoji.fix;
+        if (!this.fixAura()) {
+          //set move
+          this.moveTo(Game.getObjectById(this.memory.jobs.fix), {
+            visualizePathStyle: {
+              fill: 'transparent',
+              stroke: '#ffaaaa',
+              lineStyle: 'solid',
+              strokeWidth: .15,
+              opacity: .1
+            }
+          });
+          return Memory.emoji.fix;
+        }
+        return Memory.emoji.sogood;
     }
   }
   return Memory.emoji.oops + Memory.emoji.fix + Memory.emoji.oops;
@@ -449,7 +485,6 @@ Creep.prototype.mine = function() {
         //set move
         this.moveTo(Game.getObjectById(this.memory.jobs.mine), {
           visualizePathStyle: {
-            reusePath: 10,
             fill: 'transparent',
             stroke: '#eeff99',
             lineStyle: 'solid',
@@ -469,20 +504,24 @@ Creep.prototype.sweep = function() {
   if (this.memory.jobs.sweep) {
     switch (this.pickup(Game.getObjectById(this.memory.jobs.sweep))) {
       case 0:
-        //memory is already cleared
         return Memory.emoji.sweep;
       case -9:
-        //set move
-        this.moveTo(Game.getObjectById(this.memory.jobs.sweep), {
-          visualizePathStyle: {
-            fill: 'transparent',
-            stroke: '#eecc00',
-            lineStyle: 'dashed',
-            strokeWidth: .15,
-            opacity: .1
-          }
-        });
-        return Memory.emoji.frog;
+        if (!this.sweepAura()) {
+          //set move
+          this.moveTo(Game.getObjectById(this.memory.jobs.sweep), {
+            visualizePathStyle: {
+              fill: 'transparent',
+              stroke: '#eecc00',
+              lineStyle: 'dashed',
+              strokeWidth: .15,
+              opacity: .1
+            }
+          });
+          return Memory.emoji.hop;
+        } else {
+          return Memory.emoji.sogood;
+        }
+
     }
   }
   return Memory.emoji.oops + Memory.emoji.sweep + Memory.emoji.oops;
@@ -494,10 +533,6 @@ Creep.prototype.upgrade = function() {
   if (this.memory.jobs.upgrade) {
     switch (this.upgradeController(Game.getObjectById(this.memory.jobs.upgrade))) {
       case 0:
-        //no need to clear memory for upgrade, controller is permanent
-        return Memory.emoji.upgrade;
-      case -9:
-        //set move
         this.moveTo(Game.getObjectById(this.memory.jobs.upgrade), {
           visualizePathStyle: {
             fill: 'transparent',
@@ -507,7 +542,23 @@ Creep.prototype.upgrade = function() {
             opacity: .1
           }
         });
-        return Memory.emoji.frog;
+        //no need to clear memory for upgrade, controller is permanent
+        return Memory.emoji.upgrade;
+      case -9:
+        if (!this.upgradeAura()) {
+          //set move
+          this.moveTo(Game.getObjectById(this.memory.jobs.upgrade), {
+            visualizePathStyle: {
+              fill: 'transparent',
+              stroke: '#ffffff',
+              lineStyle: 'solid',
+              strokeWidth: .15,
+              opacity: .1
+            }
+          });
+          return Memory.emoji.hop;
+        }
+        return Memory.emoji.sogood;
     }
   }
   return Memory.emoji.oops + Memory.emoji.upgrade + Memory.emoji.oops;
@@ -544,9 +595,6 @@ Creep.prototype.frog = function(constructed, upgraded) {
   if (this.carry.energy === 0) {
     this.memory.state = 0;
   }
-  if (this.carry.energy < this.carryCapacity) {
-    this.report('deposit');
-  }
   if (this.carry.energy === this.carryCapacity) {
     this.memory.state = 1;
   }
@@ -554,6 +602,8 @@ Creep.prototype.frog = function(constructed, upgraded) {
 
   //if this has energy
   if (this.memory.state) {
+    this.sweepAura();
+    this.collectAura();
     //primary tasks in order of importance inside of state logic
     if (this.requestTask('construct')) {
       return this.construct();
@@ -572,10 +622,10 @@ Creep.prototype.frog = function(constructed, upgraded) {
     //primary tasks in order of importance inside of state logic
     if (this.requestTask('collect')) {
       return this.collect();
-    }else
+    } else
     if (this.requestTask('sweep')) {
       return this.sweep();
-    } else
+    }else
     if (this.requestTask('mine')) {
       return this.mine();
     } else{
@@ -597,9 +647,8 @@ Creep.prototype.newt = function() {
   if (this.memory.state) {
     //primary tasks in order of importance inside of state logic
     if (this.requestTask('deposit')) {
-      return this.deposit();
+        return this.deposit();
     } else
-
     if (this.requestTask('eat')) {
       return this.eat();
     }
@@ -607,13 +656,15 @@ Creep.prototype.newt = function() {
   //if this has no energy
   else {
     //primary tasks in order of importance inside of state logic
+    if (this.requestTask('sweep')) {
+      return this.sweep();
+    } else
     if (this.requestTask('collect')) {
       return this.collect();
     } else
-    if (this.requestTask('sweep')) {
-      return this.sweep();
+    if (this.requestTask('eat')) {
+      return this.eat();
     }
-
   }
 };
 
@@ -637,14 +688,7 @@ function queen(spawn) {
   if (!creepName) {
    creepName = spawn.spawnCreep(toad, rcl);
   }
- } else
- if (r.roleCount('frog') < frogCap) {
-  //console.log(frogCap);
-  let creepName = spawn.spawnCreep(frog, rcl + 1);
-  if (!creepName) {
-   creepName = spawn.spawnCreep(frog, rcl);
-  }
- } else
+ }else
  if (r.roleCount('newt') < newtCap) {
   //console.log(newtCap);
   let creepName = spawn.spawnCreep(newt, rcl + 1);
@@ -654,37 +698,47 @@ function queen(spawn) {
   if (!creepName) {
    creepName = spawn.spawnCreep(newt, 1);
   }
+ } else
+ if (r.roleCount('frog') < frogCap) {
+  //console.log(frogCap);
+  let creepName = spawn.spawnCreep(frog, rcl + 1);
+  if (!creepName) {
+   creepName = spawn.spawnCreep(frog, rcl);
+  }
  }
 }
 
 Creep.prototype.toad = function() {
   //state flipper
-  if (this.carry.energy === 0) {
+  if (this.carry.energy < this.carryCapacity) {
     this.memory.state = 0;
   }
   if (this.carry.energy === this.carryCapacity) {
     this.memory.state = 1;
   }
-  let say = '';
-  //primary tasks in order of importance inside of state logic
-  if (this.requestTask('mine')) {
-    let up = this.upgrade();
-    if(up === 0){
-      this.mine();
-      say += Memory.emoji.sogood;
-    }else{
-        say += this.mine();
-    }
-  }else
-  if (this.requestTask('eat')) {
-    say += this.eat();
-  }else
-  if (this.requestTask('construct')) {
-    say += this.construct();
-  } else {
-    say+=Memory.emoji.sogood;
+  this.depositAura();
+  this.sweepAura();
+  this.eatAura();
+  if(this.ticksToLive < 200 && EXTENSION_ENERGY_CAPACITY[this.room.controller.level]*CONTROLLER_STRUCTURES.extension[this.room.controller.level] == this.room.energyAvailable){
+    this.memory.hungry = true;
   }
-  return say;
+  if(this.ticksToLive > 1400){
+    this.memory.hungry = false;
+  }
+  if(this.memory.hungry){
+    if (this.requestTask('eat')) {
+      return this.eat();
+    }
+  }else{
+    //primary tasks in order of importance inside of state logic
+    if (this.requestTask('mine')) {
+      return this.mine();
+    }else
+    if (this.requestTask('construct')) {
+      return this.construct();
+    }
+    return Memory.emoji.frog;
+  }
 };
 
 function tower(structure) {
@@ -698,9 +752,9 @@ function tower(structure) {
  if (!structure.room.memory.towers[structure.id].mode) {
   structure.room.memory.towers[structure.id].mode = 'alert';
  }
- if (structure.energy <= 900 || nearenemies.length > 0) {
+ if (structure.energy <= 100 || nearenemies.length > 0) {
   structure.room.memory.towers[structure.id].mode = 'alert';
- } else if (structure.energy > 900) {
+} else if (structure.energy > 100) {
   structure.room.memory.towers[structure.id].mode = 'repair';
  }
  var mode = structure.room.memory.towers[structure.id].mode;
@@ -856,7 +910,7 @@ Memory.emoji = {
   whack: '⚔️',
   pew: '🔫',
   aid: '💊',
-  pickup: '✨',
+  sweep: '✨',
   suicide: '💮',
   sogood: '✨🐸✨',
   hop: '💨'
@@ -911,37 +965,16 @@ module.exports.loop = function() {
     };
     room.queueTasks();
   }
-  for(let s in Game.structures){
+  for (let s in Game.structures) {
     let structure = Game.structures[s];
     switch (structure.structureType) {
       case 'tower':
         tower(structure);
         break;
       case 'spawn':
-      if(Memory.spawns[structure.name].queen){
-        queen(structure);
-      }
-      break;
-    }
-  }
-  //auras first
-  for (let name in Memory.creeps) {
-    var creep = Game.creeps[name];
-    creep.sweepAura();
-    creep.eatAura();
-    creep.collectAura();
-    switch (creep.memory.role) {
-      case 'frog':
-        creep.mineAura();
-        creep.constructAura();
-        creep.upgradeAura();
-      break;
-      case 'toad':
-        creep.upgradeAura();
-        creep.depositAura();
-        break;
-      case 'newt':
-        creep.depositAura();
+        if (Memory.spawns[structure.name].queen) {
+          queen(structure);
+        }
         break;
     }
   }
@@ -951,7 +984,8 @@ module.exports.loop = function() {
       //clear creep work registration
       delete Memory.creeps[name];
       //then keep iterating over other creeps
-    } else if (Game.creeps[name]) {
+    } else
+    if (Game.creeps[name]) {
       var creep = Game.creeps[name];
       if (!creep.memory.room) {
         creep.memory.room = creep.room.name;
