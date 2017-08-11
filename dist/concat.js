@@ -364,6 +364,365 @@ StructureWall.prototype.report = function () {
  }
 };
 
+Creep.prototype.frog = function () {
+ //state flipper
+ if (_.sum(this.carry) === 0) {
+  this.memory.state = 0;
+ }
+ if (_.sum(this.carry) === this.carryCapacity) {
+  this.memory.state = 1;
+ }
+ //attempt all non-exclusive action auras
+ if (this.memory.hungry) {
+  if (this.requestTask('eat')) {
+   this.moveTo(Game.getObjectById(this.memory.jobs.eat));
+   this.eatAura();
+   return Memory.emoji.hop;
+  }
+ }
+ //if this has energy
+ if (this.memory.state) {
+  this.sweepAura();
+  this.collectAura();
+  //primary tasks in order of importance inside of state logic
+  if (this.requestTask('construct')) {
+   return this.construct();
+  } else
+  if (this.requestTask('upgrade')) {
+   this.mineAura();
+   return this.upgrade();
+  } else
+  if (this.requestTask('eat')) {
+   return this.eat();
+  } else {
+   return 'zzz';
+  }
+ }
+ //if this has no energy
+ else {
+  //primary tasks in order of importance inside of state logic
+  if (this.requestTask('sweep')) {
+   return this.sweep();
+  } else
+  if (this.requestTask('collect')) {
+   return this.collect();
+  } else
+  if (this.requestTask('deconstruct')) {
+   return this.deconstruct();
+  } else
+  if (this.requestTask('mine')) {
+   return this.mine();
+  } else {
+   return 'zzz';
+  }
+ }
+};
+
+//minnows simply run resources between the minnow flag room and their room's storage
+Creep.prototype.minnow = function () {
+ //state flipper
+ if (_.sum(this.carry) === 0) {
+  this.memory.state = 0;
+ }
+ if (_.sum(this.carry) > this.carryCapacity / 2) {
+  this.memory.state = 1;
+ }
+
+ //attempt all non-exclusive action auras
+ //if this has energy
+ if (this.room.controller && this.room.controller.my) {
+  this.sweepAura();
+  this.dumpAura();
+ } else {
+  this.vacuumAura();
+ }
+
+ if (this.memory.hungry) {
+  if (this.requestTask('eat')) {
+   this.moveTo(Game.getObjectById(this.memory.jobs.eat));
+   this.eatAura();
+   return Memory.emoji.hop;
+  }
+ }
+
+ if (this.memory.state) {
+  this.memory.checkpoint = 0;
+  if (Game.cpu.tickLimit - Game.cpu.getUsed() > 20) {
+   this.moveTo(Game.rooms[this.memory.room].storage);
+  } else {
+   this.moveTo(Game.rooms[this.memory.room].storage, { noPathFinding: true });
+  }
+  if (this.room.terminal) {
+   for (let resourceType in this.carry) {
+    this.transfer(Game.rooms[this.memory.room].terminal, resourceType);
+   }
+  }
+  if (this.room.storage) {
+   for (let resourceType in this.carry) {
+    this.transfer(Game.rooms[this.memory.room].storage, resourceType);
+   }
+  }
+  return Memory.emoji.hop;
+ }
+ //if this has no energy
+ else {
+  if (this.pos.isEqualTo(Game.flags.minnow.pos)) {
+   this.memory.checkpoint = 1;
+  }
+  if (this.memory.checkpoint > 0) {
+   if (!this.room.controller || !this.room.controller.my) {
+    if (this.room.storage) {
+     if (Game.cpu.tickLimit - Game.cpu.getUsed() > 20) {
+      this.moveTo(this.room.storage);
+     } else {
+      this.moveTo(this.room.storage, { noPathFinding: true });
+     }
+     for (let resourceType in this.room.storage.store) {
+      this.withdraw(this.room.storage, resourceType);
+     }
+    }
+    if (this.room.terminal) {
+     if (Game.cpu.tickLimit - Game.cpu.getUsed() > 20) {
+      this.moveTo(this.room.terminal);
+     } else {
+      this.moveTo(this.room.terminal, { noPathFinding: true });
+     }
+     for (let resourceType in this.room.terminal.store) {
+      this.withdraw(this.room.terminal, resourceType);
+     }
+    }
+   }
+  } else {
+   // Perform pathfinding only if we have enough CPU
+   if (Game.cpu.tickLimit - Game.cpu.getUsed() > 20) {
+    this.moveTo(Game.flags.minnow);
+   }
+   this.moveTo(Game.flags.minnow, { noPathFinding: true });
+  }
+  return Memory.emoji.hop;
+ }
+};
+
+Creep.prototype.newt = function () {
+ //state flipper
+ if (_.sum(this.carry) === 0) {
+  this.memory.state = 0;
+ }
+ //if creep has energy
+ else if (_.sum(this.carry) > 0) {
+  this.memory.state = 1;
+ }
+ if (!this.memory.from) {
+  if (!this.sweepAura()) {
+   this.collectAura();
+  }
+ }
+ if (!this.memory.to) {
+  this.depositAura();
+  //this.dumpAura();
+ }
+ //if this has energy
+ if (this.memory.state) {
+  if (this.memory.to) {
+   for (let resourceType in this.carry) {
+    if (this.transfer(Game.getObjectById(this.memory.to), resourceType) == 0) {
+     return 'bibiibiii!';
+    }
+   }
+   if (this.moveTo(Game.getObjectById(this.memory.to)) === 0) {
+    return 'ribit';
+   }
+  } else
+   //primary tasks in order of importance inside of state logic
+   if (this.requestTask('deposit')) {
+    return this.deposit();
+   } else
+  if (this.requestTask('eat')) {
+   return this.eat();
+  }
+ }
+ //if this has no energy
+ else {
+  if (this.memory.from) {
+   if (Game.getObjectById(this.memory.from).store) {
+    for (let resourceType in RESOURCES_ALL) {
+     //console.log(this.withdraw(Game.getObjectById(this.memory.from), RESOURCES_ALL[resourceType]));
+     if (this.withdraw(Game.getObjectById(this.memory.from), RESOURCES_ALL[resourceType]) === 0) {
+      return 'bibiibiii!';
+     }
+    }
+   } else if (Game.getObjectById(this.memory.from).carry) {
+    for (let resourceType in Game.getObjectById(this.memory.from).carry) {
+     if (Game.getObjectById(this.memory.from).transfer(this, resourceType) === 0) {
+      return 'bibiibiii!';
+     } else {
+      if (this.moveTo(Game.getObjectById(this.memory.from)) === 0) {
+       return 'ribit';
+      }
+     }
+    }
+   }
+   if (this.moveTo(Game.getObjectById(this.memory.from)) === 0) {
+    return 'ribit';
+   }
+  } else
+   //primary tasks in order of importance inside of state logic
+
+   if (this.requestTask('collect')) {
+    return this.collect();
+   } else
+  if (this.requestTask('sweep')) {
+   return this.sweep();
+  } else
+  if (this.requestTask('eat')) {
+   return this.eat();
+  }
+ }
+ return 'zzz';
+};
+
+function queen(spawn) {
+ const r = spawn.room;
+ const rcl = r.controller.level;
+ //spawn logic
+ //rcl switch
+ let frog = Memory.recipes.frog;
+ let toad = Memory.recipes.toad;
+ let newt = Memory.recipes.newt;
+ let minnow = Memory.recipes.minnow;
+ let newtCap = r.memory.sc;
+ let frogCap = r.memory.jobs.construct.length ? r.memory.jobs.construct.length : 1;
+ let toadCap = r.memory.sc;
+ let minnowCap = (r.storage && Game.flags.minnow ? 2 : 0);
+ //we want to spawn creeps based on tasks needing to be done
+ let toads = r.roleCount('toad');
+ //console.log(spawn.room.name + ' toads: ' + toads + ' toadcap: ' + toadCap);
+ let frogs = r.roleCount('frog');
+ console.log(spawn.room.name + ' frogs: ' + frogs + ' frogcap: ' + frogCap);
+ let newts = r.roleCount('newt');
+ //console.log(spawn.room.name+' newts: '+newts+' newtCap: '+newtCap);
+ let minnows = r.roleCount('minnow');
+ //console.log(spawn.room.name + ' minnows: ' + minnows + ' minnowCap: ' + minnowCap);
+ if (toads < toadCap) {
+  //console.log(toadCap);
+  let creepName = spawn.spawnCreep(toad, rcl + 1);
+  if (!creepName) {
+   creepName = spawn.spawnCreep(toad, rcl);
+  }
+ } else
+ if (newts < newtCap) {
+  //console.log(newtCap);
+  let creepName = spawn.spawnCreep(newt, rcl + 1);
+  if (!creepName) {
+   creepName = spawn.spawnCreep(newt, rcl);
+  }
+  if (!creepName) {
+   creepName = spawn.spawnCreep(newt, rcl - 1);
+  }
+ } else
+ if (frogs < frogCap) {
+  //console.log(frogCap);
+  let creepName = spawn.spawnCreep(frog, rcl + 1);
+  if (!creepName) {
+   creepName = spawn.spawnCreep(frog, rcl);
+  }
+ } else
+ if (minnows < minnowCap) {
+  //console.log(frogCap);
+  let creepName = spawn.spawnCreep(minnow, rcl);
+ }
+}
+
+Creep.prototype.toad = function () {
+ //state flipper
+ if (this.carry.energy < this.carryCapacity) {
+  this.memory.state = 0;
+ }
+ if (this.carry.energy === this.carryCapacity) {
+  this.memory.state = 1;
+ }
+ if (!this.depositAura()) {
+  this.dumpAura();
+ };
+ if (!this.constructAura()) {
+  this.fixAura();
+ }
+ this.sweepAura();
+ this.eatAura();
+ this.mineAura();
+ //this.collectAura();
+ let roomMaxed = (EXTENSION_ENERGY_CAPACITY[this.room.controller.level] * CONTROLLER_STRUCTURES.extension[this.room.controller.level] <= this.room.energyAvailable);
+ if (this.memory.hungry) {
+  if (this.requestTask('eat')) {
+   this.requestTask('mine');
+   return this.eat();
+  }
+ } else {
+  if (roomMaxed) {
+   if (!this.constructAura()) {
+    this.upgradeAura();
+   }
+  }
+  //primary tasks in order of importance inside of state logic
+  if (this.requestTask('mine')) {
+   return this.mine();
+  } else
+  if (this.requestTask('eat')) {
+   return this.eat();
+  }
+  return Memory.emoji.frog;
+ }
+};
+
+function tower(structure) {
+ var nearenemies = structure.pos.findInRange(FIND_HOSTILE_CREEPS, 15);
+ if (!structure.room.memory.towers) {
+  structure.room.memory.towers = {};
+ }
+ if (!structure.room.memory.towers[structure.id]) {
+  structure.room.memory.towers[structure.id] = {};
+ }
+ if (!structure.room.memory.towers[structure.id].mode) {
+  structure.room.memory.towers[structure.id].mode = 'alert';
+ }
+ if (structure.energy <= 100 || nearenemies.length > 0) {
+  structure.room.memory.towers[structure.id].mode = 'alert';
+ } else if (structure.energy > 100) {
+  structure.room.memory.towers[structure.id].mode = 'repair';
+ }
+ var hurt;
+ var mode = structure.room.memory.towers[structure.id].mode;
+ if (mode == 'alert') {
+  hurt = structure.room.find(FIND_MY_CREEPS, { filter: object => object.hits < object.hitsMax });
+  if (nearenemies.length > 0) {
+   if (nearenemies.length > 1) {
+    nearenemies.sort((a, b) => a.hits - b.hits);
+   }
+   structure.attack(nearenemies[0]);
+  } else if (hurt.length > 0) {
+   if (hurt.length > 1) {
+    hurt.sort((a, b) => a.hits - b.hits);
+   }
+   structure.heal(hurt[0]);
+  }
+
+
+ } else if (mode == 'repair') {
+  var damaged = structure.room.memory.jobs.fix;
+  //console.log('Detecting damaged structures');
+  structure.repair(Game.getObjectById(damaged[0]));
+  hurt = structure.room.memory.jobs.aid;
+  structure.heal(Game.getObjectById(hurt[0]));
+ } else {
+  if (nearenemies.length > 0) {
+   if (nearenemies.length > 1) {
+    nearenemies.sort((a, b) => a.hits - b.hits);
+   }
+   structure.attack(nearenemies[0]);
+  }
+ }
+}
+
 /*jshint -W008 */
 //// HEAL PLUS ////
 Creep.prototype.aid = function() {
@@ -894,8 +1253,8 @@ Creep.prototype.upgrade = function () {
   this.signController("Ribbit");
   switch (this.upgradeController(Game.getObjectById(this.memory.jobs.upgrade))) {
   case 0:
-   CM.set(this.pos.x, this.pos.y, 255);
-   this.move(Math.random() * (8 - 1) + 1);
+   //CM.set(this.pos.x, this.pos.y, 255);
+   //this.move(Math.random() * (8 - 1) + 1);
    //no need to clear memory for upgrade, controller is permanent
    return Memory.emoji.upgrade;
   case -9:
@@ -942,357 +1301,6 @@ Creep.prototype.whack = function() {
   }
   return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
 };
-
-Creep.prototype.frog = function () {
- //state flipper
- if (_.sum(this.carry) === 0) {
-  this.memory.state = 0;
- }
- if (_.sum(this.carry) === this.carryCapacity) {
-  this.memory.state = 1;
- }
- //attempt all non-exclusive action auras
-
- //if this has energy
- if (this.memory.state) {
-  this.sweepAura();
-  this.collectAura();
-  //primary tasks in order of importance inside of state logic
-  if (this.requestTask('construct')) {
-   return this.construct();
-  } else
-  if (this.requestTask('upgrade')) {
-   this.mineAura();
-   return this.upgrade();
-  } else
-  if (this.requestTask('eat')) {
-   return this.eat();
-  } else {
-   return 'zzz';
-  }
- }
- //if this has no energy
- else {
-  //primary tasks in order of importance inside of state logic
-  if (this.requestTask('sweep')) {
-   return this.sweep();
-  } else
-  if (this.requestTask('collect')) {
-   return this.collect();
-  } else
-  if (this.requestTask('deconstruct')) {
-   return this.deconstruct();
-  } else
-  if (this.requestTask('mine')) {
-   return this.mine();
-  } else {
-   return 'zzz';
-  }
- }
-};
-
-//minnows simply run resources between the minnow flag room and their room's storage
-Creep.prototype.minnow = function () {
- //state flipper
- if (_.sum(this.carry) === 0) {
-  this.memory.state = 0;
- }
- if (_.sum(this.carry) > this.carryCapacity / 2) {
-  this.memory.state = 1;
- }
-
- //attempt all non-exclusive action auras
- //if this has energy
- if (this.room.controller && this.room.controller.my) {
-  this.sweepAura();
-  this.dumpAura();
- } else {
-  this.vacuumAura();
- }
-
- if (this.memory.hungry) {
-  if (this.requestTask('eat')) {
-   this.moveTo(Game.getObjectById(this.memory.jobs.eat));
-   this.eatAura();
-   return Memory.emoji.hop;
-  }
- }
-
- if (this.memory.state) {
-  this.memory.checkpoint = 0;
-  if (Game.cpu.tickLimit - Game.cpu.getUsed() > 20) {
-   this.moveTo(Game.rooms[this.memory.room].storage);
-  } else {
-   this.moveTo(Game.rooms[this.memory.room].storage, { noPathFinding: true });
-  }
-  if (this.room.terminal) {
-   for (let resourceType in this.carry) {
-    this.transfer(Game.rooms[this.memory.room].terminal, resourceType);
-   }
-  }
-  if (this.room.storage) {
-   for (let resourceType in this.carry) {
-    this.transfer(Game.rooms[this.memory.room].storage, resourceType);
-   }
-  }
-  return Memory.emoji.hop;
- }
- //if this has no energy
- else {
-  if (this.pos.isEqualTo(Game.flags.minnow.pos)) {
-   this.memory.checkpoint = 1;
-  }
-  if (this.memory.checkpoint > 0) {
-   if (!this.room.controller || !this.room.controller.my) {
-    if (this.room.storage) {
-     if (Game.cpu.tickLimit - Game.cpu.getUsed() > 20) {
-      this.moveTo(this.room.storage);
-     } else {
-      this.moveTo(this.room.storage, { noPathFinding: true });
-     }
-     for (let resourceType in this.room.storage.store) {
-      this.withdraw(this.room.storage, resourceType);
-     }
-    }
-    if (this.room.terminal) {
-     if (Game.cpu.tickLimit - Game.cpu.getUsed() > 20) {
-      this.moveTo(this.room.terminal);
-     } else {
-      this.moveTo(this.room.terminal, { noPathFinding: true });
-     }
-     for (let resourceType in this.room.terminal.store) {
-      this.withdraw(this.room.terminal, resourceType);
-     }
-    }
-   }
-  } else {
-   // Perform pathfinding only if we have enough CPU
-   if (Game.cpu.tickLimit - Game.cpu.getUsed() > 20) {
-    this.moveTo(Game.flags.minnow);
-   }
-   this.moveTo(Game.flags.minnow, { noPathFinding: true });
-  }
-  return Memory.emoji.hop;
- }
-};
-
-Creep.prototype.newt = function () {
- //state flipper
- if (_.sum(this.carry) === 0) {
-  this.memory.state = 0;
- }
- //if creep has energy
- else if (_.sum(this.carry) > 0) {
-  this.memory.state = 1;
- }
- if (!this.memory.from) {
-  if (!this.sweepAura()) {
-   this.collectAura();
-  }
- }
- if (!this.memory.to) {
-  this.depositAura();
-  //this.dumpAura();
- }
- //if this has energy
- if (this.memory.state) {
-  if (this.memory.to) {
-   for (let resourceType in this.carry) {
-    if (this.transfer(Game.getObjectById(this.memory.to), resourceType) == 0) {
-     return 'bibiibiii!';
-    }
-   }
-   if (this.moveTo(Game.getObjectById(this.memory.to)) === 0) {
-    return 'ribit';
-   }
-  } else
-   //primary tasks in order of importance inside of state logic
-   if (this.requestTask('deposit')) {
-    return this.deposit();
-   } else
-  if (this.requestTask('eat')) {
-   return this.eat();
-  }
- }
- //if this has no energy
- else {
-  if (this.memory.from) {
-   if (Game.getObjectById(this.memory.from).store) {
-    for (let resourceType in RESOURCES_ALL) {
-     //console.log(this.withdraw(Game.getObjectById(this.memory.from), RESOURCES_ALL[resourceType]));
-     if (this.withdraw(Game.getObjectById(this.memory.from), RESOURCES_ALL[resourceType]) === 0) {
-      return 'bibiibiii!';
-     }
-    }
-   } else if (Game.getObjectById(this.memory.from).carry) {
-    for (let resourceType in Game.getObjectById(this.memory.from).carry) {
-     if (Game.getObjectById(this.memory.from).transfer(this, resourceType) === 0) {
-      return 'bibiibiii!';
-     } else {
-      if (this.moveTo(Game.getObjectById(this.memory.from)) === 0) {
-       return 'ribit';
-      }
-     }
-    }
-   }
-   if (this.moveTo(Game.getObjectById(this.memory.from)) === 0) {
-    return 'ribit';
-   }
-  } else
-   //primary tasks in order of importance inside of state logic
-
-   if (this.requestTask('collect')) {
-    return this.collect();
-   } else
-  if (this.requestTask('sweep')) {
-   return this.sweep();
-  } else
-  if (this.requestTask('eat')) {
-   return this.eat();
-  }
- }
- return 'zzz';
-};
-
-function queen(spawn) {
- const r = spawn.room;
- const rcl = r.controller.level;
- //spawn logic
- //rcl switch
- let frog = Memory.recipes.frog;
- let toad = Memory.recipes.toad;
- let newt = Memory.recipes.newt;
- let minnow = Memory.recipes.minnow;
- let newtCap = r.memory.sc;
- let frogCap = r.memory.jobs.construct.length;
- let toadCap = r.memory.sc;
- let minnowCap = (r.storage && Game.flags.minnow ? 2 : 0);
- //we want to spawn creeps based on tasks needing to be done
- let toads = r.roleCount('toad');
- //console.log(spawn.room.name + ' toads: ' + toads + ' toadcap: ' + toadCap);
- let frogs = r.roleCount('frog');
- console.log(spawn.room.name + ' frogs: ' + frogs + ' frogcap: ' + frogCap);
- let newts = r.roleCount('newt');
- //console.log(spawn.room.name+' newts: '+newts+' newtCap: '+newtCap);
- let minnows = r.roleCount('minnow');
- //console.log(spawn.room.name + ' minnows: ' + minnows + ' minnowCap: ' + minnowCap);
- if (toads < toadCap) {
-  //console.log(toadCap);
-  let creepName = spawn.spawnCreep(toad, rcl + 1);
-  if (!creepName) {
-   creepName = spawn.spawnCreep(toad, rcl);
-  }
- } else
- if (newts < newtCap) {
-  //console.log(newtCap);
-  let creepName = spawn.spawnCreep(newt, rcl + 1);
-  if (!creepName) {
-   creepName = spawn.spawnCreep(newt, rcl);
-  }
-  if (!creepName) {
-   creepName = spawn.spawnCreep(newt, rcl - 1);
-  }
- } else
- if (frogs < frogCap) {
-  //console.log(frogCap);
-  let creepName = spawn.spawnCreep(frog, rcl + 1);
-  if (!creepName) {
-   creepName = spawn.spawnCreep(frog, rcl);
-  }
- } else
- if (minnows < minnowCap) {
-  //console.log(frogCap);
-  let creepName = spawn.spawnCreep(minnow, rcl);
- }
-}
-
-Creep.prototype.toad = function () {
- //state flipper
- if (this.carry.energy < this.carryCapacity) {
-  this.memory.state = 0;
- }
- if (this.carry.energy === this.carryCapacity) {
-  this.memory.state = 1;
- }
- if (!this.depositAura()) {
-  this.dumpAura();
-  this.constructAura();
- };
- this.sweepAura();
- this.eatAura();
- this.mineAura();
- //this.collectAura();
- let roomMaxed = (EXTENSION_ENERGY_CAPACITY[this.room.controller.level] * CONTROLLER_STRUCTURES.extension[this.room.controller.level] <= this.room.energyAvailable);
- if (this.memory.hungry) {
-  if (this.requestTask('eat')) {
-   this.requestTask('mine');
-   return this.eat();
-  }
- } else {
-  if (roomMaxed) {
-   if (!this.constructAura()) {
-    this.upgradeAura();
-   }
-  }
-  //primary tasks in order of importance inside of state logic
-  if (this.requestTask('mine')) {
-   return this.mine();
-  } else
-  if (this.requestTask('eat')) {
-   return this.eat();
-  }
-  return Memory.emoji.frog;
- }
-};
-
-function tower(structure) {
- var nearenemies = structure.pos.findInRange(FIND_HOSTILE_CREEPS, 15);
- if (!structure.room.memory.towers) {
-  structure.room.memory.towers = {};
- }
- if (!structure.room.memory.towers[structure.id]) {
-  structure.room.memory.towers[structure.id] = {};
- }
- if (!structure.room.memory.towers[structure.id].mode) {
-  structure.room.memory.towers[structure.id].mode = 'alert';
- }
- if (structure.energy <= 100 || nearenemies.length > 0) {
-  structure.room.memory.towers[structure.id].mode = 'alert';
- } else if (structure.energy > 100) {
-  structure.room.memory.towers[structure.id].mode = 'repair';
- }
- var hurt;
- var mode = structure.room.memory.towers[structure.id].mode;
- if (mode == 'alert') {
-  hurt = structure.room.find(FIND_MY_CREEPS, { filter: object => object.hits < object.hitsMax });
-  if (nearenemies.length > 0) {
-   if (nearenemies.length > 1) {
-    nearenemies.sort((a, b) => a.hits - b.hits);
-   }
-   structure.attack(nearenemies[0]);
-  } else if (hurt.length > 0) {
-   if (hurt.length > 1) {
-    hurt.sort((a, b) => a.hits - b.hits);
-   }
-   structure.heal(hurt[0]);
-  }
-
-
- } else if (mode == 'repair') {
-  var damaged = structure.room.memory.jobs.fix;
-  //console.log('Detecting damaged structures');
-  structure.repair(Game.getObjectById(damaged[0]));
-  hurt = structure.room.memory.jobs.aid;
-  structure.heal(Game.getObjectById(hurt[0]));
- } else {
-  if (nearenemies.length > 0) {
-   if (nearenemies.length > 1) {
-    nearenemies.sort((a, b) => a.hits - b.hits);
-   }
-   structure.attack(nearenemies[0]);
-  }
- }
-}
 
 //first set memory structures
 if (!Memory.recipes) {
