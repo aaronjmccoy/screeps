@@ -22,7 +22,6 @@ gulp.task('scripts', function () {
   .pipe(babel({
    presets: ['es2015']
   }))
-  .pipe(uglify('main.js'))
   .pipe(gulp.dest('dist/'))
   .pipe(screeps(credentials));
 });
