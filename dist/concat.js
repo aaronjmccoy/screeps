@@ -112,6 +112,7 @@ Room.prototype.initializeMemory = function() {
       };
     }
   }
+  this.memory.initialized = 1;
 };
 
 Room.prototype.queueTasks = function(parentRoom) {
@@ -214,7 +215,7 @@ Room.prototype.queueTasks = function(parentRoom) {
           }
         }
         //if the creep is bored
-        if (creep.memory.bored) {}
+        //if (creep.memory.bored) {}
         /*
       Some folks I talk with think having a handler for creeps without work is
       a good idea so you can do that here. I haven't worked out a great use
@@ -425,6 +426,10 @@ StructureExtension.prototype.report = function() {
   }
 };
 
+StructureExtractor.prototype.report = function() {
+  //this.room.memory.caecilian.mine.push(this.id);
+};
+
 StructureLab.prototype.report = function() {
   if (this.room.controller.my) {
     //if I control the lab
@@ -444,6 +449,31 @@ StructureLab.prototype.report = function() {
       Memory.rooms[this.room.name].frog.deconstruct.push(this.id);
     }
   }
+};
+
+StructureLink.prototype.report = function() {
+	if(!Memory.rooms[this.room.name].links[this.id]) {
+		Memory.rooms[this.room.name].links[this.id] = {
+			"to": null
+		};
+	}
+	if(Game.getObjectById(Memory.rooms[this.room.name].links[this.id].to)) {
+		Memory.rooms[this.room.name].toad.deposit.push(this.id);
+		Memory.rooms[this.room.name].frog.collect.push(this.id);
+		Memory.rooms[this.room.name].newt.collect.push(this.id);
+		if(Game.getObjectById(Memory.rooms[this.room.name].links[this.id].to).energy < 700 && this.energy > 100) {
+			this.transferEnergy(Game.getObjectById(Memory.rooms[this.room.name].links[this.id].to));
+		}
+	}
+	if(!Memory.rooms[this.room.name].links[this.id].to && this.energy > 0) {
+		Memory.rooms[this.room.name].toad.collect.push(this.id);
+		Memory.rooms[this.room.name].frog.collect.push(this.id);
+		Memory.rooms[this.room.name].newt.collect.push(this.id);
+	}
+};
+
+Mineral.prototype.report = function() {
+  this.room.createConstructionSite(this.pos.x, this.pos.y, this.pos.roomName);
 };
 
 StructurePowerSpawn.prototype.report = function() {
@@ -980,20 +1010,20 @@ Creep.prototype.mine = function() {
 
 /* jshint -W008 */
 //// RESERVE PLUS
-Creep.prototype.squat = function() {
-    //console.log('Attempting to squat lock to '+Memory.rooms[this.memory.room].children[1]);
-    //this.memory.squatTarget = (Memory.rooms[this.memory.room].children[1]);
-    //console.log('manual squat: '+this.memory.room+' : '+this.memory.squatTarget)
+Creep.prototype.squat = function () {
+  //console.log('Attempting to squat lock to '+Memory.rooms[this.memory.room].children[1]);
+  //this.memory.squatTarget = (Memory.rooms[this.memory.room].children[1]);
+  //console.log('manual squat: '+this.memory.room+' : '+this.memory.squatTarget)
   if (this.memory.tasks.squat) {
-      this.memory.squatTarget = Game.getObjectById(this.memory.tasks.squat).pos.roomName;
+    this.memory.squatTarget = Game.getObjectById(this.memory.tasks.squat).pos.roomName;
     if (this.reserveController(Game.getObjectById(this.memory.tasks.squat)) == 0) {
-        this.memory.squatLock = this.memory.tasks.squat;
-        this.signController(Game.getObjectById(this.memory.tasks.squat), "Ribbit");
+      this.memory.squatLock = this.memory.tasks.squat;
+      this.signController(Game.getObjectById(this.memory.tasks.squat), "Ribbit");
       return Memory.emoji.frog;
     } else {
       //set move
       //console.log(JSON.stringify(Memory.rooms[this.memory.squatTarget].controller.pos));
-      
+      this.attackController(Game.getObjectById(this.memory.tasks.squat));
       if (this.memory.squatTarget) {
         // console.log(this.name);
         // console.log(this.memory.squatTarget);
@@ -1010,7 +1040,7 @@ Creep.prototype.squat = function() {
       } else {
         //console.log(Memory.rooms[Memory.rooms[this.memory.room].children[0]].squatter.squat);
         //console.log(Memory.rooms[Memory.rooms[this.memory.room].children[0]].squatter.squat.includes(this.memory.tasks.squat));
-        this.memory.squatTarget = (Memory.rooms[Memory.rooms[this.memory.room].children[0]].squatter.squat.includes(this.memory.tasks.squat) ? Memory.rooms[this.memory.room].children[0] : Memory.rooms[this.memory.room].children[1]) ;
+        this.memory.squatTarget = Memory.rooms[Memory.rooms[this.memory.room].children[0]].squatter.squat.includes(this.memory.tasks.squat) ? Memory.rooms[this.memory.room].children[0] : Memory.rooms[this.memory.room].children[1];
         //console.log('set target for squat after fail: '+ this.memory.squatTarget +' for creep whose home is room '+this.memory.room);
       }
       return Memory.emoji.sogood;
@@ -1126,6 +1156,53 @@ Creep.prototype.whack = function() {
     return Memory.emoji.whack;
     }
   return Memory.emoji.oops + Memory.emoji.whack + Memory.emoji.oops;
+};
+
+Creep.prototype.caecilian = function() {
+  //state flipper
+  if (_.sum(this.carry) === 0) {
+    this.memory.state = 0;
+  }
+  if (_.sum(this.carry) === this.carryCapacity) {
+    this.memory.state = 1;
+  }
+  //attempt all non-exclusive action auras
+  this.sweepAura();
+  this.collectAura();
+  //if hungry eat
+  if (this.memory.hungry) {
+    if (this.requestTask('eat')) {
+      this.moveTo(Game.getObjectById(this.memory.tasks.eat));
+      this.eatAura();
+      return Memory.emoji.hop;
+    } else if(this.requestTask('eat')){
+      this.moveTo(Game.getObjectById(this.memory.tasks.eat));
+      this.eatAura();
+      return Memory.emoji.hop;
+    }
+  } else
+  //if this has energy
+  if (this.memory.state) {
+    //primary tasks in order of importance inside of state logic
+    if (this.requestTask('deposit')) {
+      return this.deposit();
+    } else if (this.requestTask('eat')) {
+      return this.eat();
+    } else {
+      return 'zzz'; //if this has no energy;
+    }
+  } else {
+    //primary tasks in order of importance inside of state logic
+    if (this.requestTask('mine')) {
+      return this.mine();
+    } else if (this.requestTask('collect')) {
+      return this.collect();
+    } else if (this.requestTask('sweep')) {
+      return this.sweep();
+    } else{
+        return 'zzz';
+    }
+  }
 };
 
 Creep.prototype.claimer = function() {
