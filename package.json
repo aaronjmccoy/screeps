@@ -36,6 +36,6 @@
     "natives": "1.1.6"
   },
   "dependencies": {
-    "npm": "^6.9.0"
+    "npm": "^6.14.6"
   }
 }
