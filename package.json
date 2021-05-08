@@ -28,7 +28,7 @@
     "gulp-uglify": "^2.1.2",
     "gulp-uglifyjs": "^0.6.2",
     "jshint": "^2.10.2",
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.21",
     "screepsplus-agent": "^1.5.0",
     "uglifyjs": "^2.4.10"
   },
